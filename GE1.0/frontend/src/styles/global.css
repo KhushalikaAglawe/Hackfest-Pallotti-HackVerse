@@ -143,7 +143,6 @@ input:focus {
   0% { box-shadow: 0 0 5px red; }
   50% { box-shadow: 0 0 20px red; }
   100% { box-shadow: 0 0 5px red; }
-<<<<<<< HEAD
 }
 
 .app {
@@ -221,6 +220,77 @@ input:focus {
 .triage {
   border-color: #ffaa00;
   box-shadow: 0 0 10px #ffaa0055;
-=======
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
+}
+.radar-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border: 1px solid #00ff9c;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* circle */
+.radar-circle {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 2px solid #00ff9c;
+  border-radius: 50%;
+}
+
+/* sweep */
+.radar-sweep {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: conic-gradient(
+    rgba(0,255,156,0.3),
+    transparent 60%
+  );
+  border-radius: 50%;
+  animation: rotateRadar 3s linear infinite;
+}
+
+@keyframes rotateRadar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* dots */
+.radar-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #00ff9c;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #00ff9c;
+}
+
+.vip-lock {
+  animation: vipPulse 1s infinite;
+  border-color: #ff00ff;
+}
+
+@keyframes vipPulse {
+  0% { box-shadow: 0 0 5px #ff00ff; }
+  50% { box-shadow: 0 0 20px #ff00ff; }
+  100% { box-shadow: 0 0 5px #ff00ff; }
+}
+.emergency-screen {
+  animation: redFlash 1s infinite;
+}
+
+@keyframes redFlash {
+  50% { background-color: rgba(255,0,0,0.2); }
+}
+.vip-lock {
+  animation: vipPulse 0.8s infinite;
+  border: 2px solid #ff00ff;
+}
+
+@keyframes vipPulse {
+  0% { box-shadow: 0 0 5px #ff00ff; }
+  50% { box-shadow: 0 0 25px #ff00ff; }
+  100% { box-shadow: 0 0 5px #ff00ff; }
 }

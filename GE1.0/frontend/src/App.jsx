@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import "./styles/global.css";
 
-<<<<<<< HEAD
 // Components
-=======
-// ✅ Correct Imports (CASE FIXED)
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
 import VideoPlayer from "./components/VideoPlayer";
 import VLMControls from "./components/VLMControls";
 import RadarPanel from "./components/RadarPanel";
@@ -15,10 +11,6 @@ import AlertsBanner from "./components/AlertsBanner";
 import MissionControl from "./components/MissionControl";
 import BottomPanels from "./components/BottomPanels";
 
-<<<<<<< HEAD
-=======
-
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
 export default function App() {
 
   const sounds = {
@@ -30,13 +22,11 @@ export default function App() {
   const [persons, setPersons] = useState([]);
   const [alert, setAlert] = useState("NORMAL");
   const [audioEnabled, setAudioEnabled] = useState(false);
-<<<<<<< HEAD
+  const [vipLocked, setVipLocked] = useState(false);
   const [logs, setLogs] = useState([
     "[SYSTEM] Boot sequence initiated...",
     "[AI] Awaiting commands..."
   ]);
-=======
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
 
   const enableAudio = () => {
     Object.values(sounds).forEach((s) => {
@@ -48,7 +38,6 @@ export default function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-<<<<<<< HEAD
 
       const dummy = {
         id: "P-001",
@@ -62,36 +51,21 @@ export default function App() {
         ...prev.slice(-5),
         `[AI] ${dummy.status} detected (${dummy.score})`
       ]);
+      if (persons.length > 0 && persons[0].score > 100) {
+  setVipLocked(true);
 
-=======
-      setPersons([
-        {
-          id: "P-001",
-          status: Math.random() > 0.5 ? "Standing" : "Injured",
-          score: Math.floor(Math.random() * 150),
-        },
-      ]);
+  if (audioEnabled) {
+    sounds.target.play();
+  }
+} else {
+  setVipLocked(false);
+}
 
-        const [logs, setLogs] = useState([
-       "[SYSTEM] Boot sequence initiated...",
-        "[AI] Awaiting commands..."
-      ]);
-      setLogs((prev) => [
-  ...prev,
-  "[AI] Hazard scan complete...",
-]);
-setLogs((prev) => [
-  ...prev.slice(-5), // keep last 5 logs only
-  "[AI] New update received..."
-]);
-
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
       const states = ["NORMAL", "WARNING", "EMERGENCY"];
       const random = states[Math.floor(Math.random() * 3)];
       setAlert(random);
 
       if (audioEnabled) {
-<<<<<<< HEAD
         if (random === "EMERGENCY") {
           sounds.emergency.loop = true;
           sounds.emergency.play();
@@ -101,22 +75,18 @@ setLogs((prev) => [
         }
       }
 
-=======
-        if (random === "EMERGENCY") sounds.emergency.play();
-        if (random === "WARNING") sounds.warning.play();
-      }
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
     }, 5000);
 
     return () => clearInterval(interval);
   }, [audioEnabled]);
 
-<<<<<<< HEAD
  return (
-  <div className="app">
+  <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
+    
 
     <div className="header">
-      🚁 GUARDIAN EYE — EDGE COMMAND DECK
+        GUARDIAN EYE — EDGE COMMAND DECK
+        
     </div>
 
     {/* TOP GRID */}
@@ -132,6 +102,16 @@ setLogs((prev) => [
 
       <div className="right-panel">
         <RadarPanel persons={persons} />
+        {persons.map((p, i) => (
+  <div
+    key={i}
+    className="radar-dot"
+    style={{
+      top: `${Math.random() * 100}%`,
+      left: `${Math.random() * 100}%`
+    }}
+  />
+))}
       </div>
 
     </div>
@@ -141,6 +121,9 @@ setLogs((prev) => [
 
   <div className="panel vip">
     <h3>VIP TRACKER</h3>
+    <div className={`panel vip ${persons.length > 0 ? "vip-lock" : ""}`}></div>
+    <div className={`panel vip ${vipLocked ? "vip-lock" : ""}`}></div>
+    
   </div>
 
   <div className="panel hazard">
@@ -157,34 +140,4 @@ setLogs((prev) => [
 
   </div>
 );
-=======
-  return (
-    <div className="app">
-
-      {!audioEnabled && (
-        <button onClick={enableAudio}>🔊 Enable Audio</button>
-      )}
-
-      <div className="header">
-        🚁 GUARDIAN EYE - EDGE COMMAND DECK
-      </div>
-
-      <AlertsBanner alert={alert} />
-
-      <div className="top-section">
-        <VLMControls />
-        <VideoPlayer />
-        <RadarPanel />
-      </div>
-
-      <TelemetryPanel persons={persons} />
-
-      <AITerminal />
-      <MissionControl />
-      <BottomPanels />
-      <AITerminal logs={logs} />
-
-    </div>
-  );
->>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
 }
