@@ -294,3 +294,47 @@ input:focus {
   50% { box-shadow: 0 0 25px #ff00ff; }
   100% { box-shadow: 0 0 5px #ff00ff; }
 }
+
+/* Add these specific classes to your existing global.css */
+
+/* Depth Container specifically to fit Center Panel */
+.center-panel {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  padding: 0; /* Ensures 3D canvas touches edges */
+  overflow: hidden;
+}
+
+/* Ensure canvas takes full space */
+canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Updated Button Hover to be less aggressive for small toggles */
+.mode-toggles .btn {
+  margin: 0;
+  font-size: 10px;
+}
+
+/* Active Depth Style */
+.purple {
+  background: #cc00ff;
+  color: white;
+  box-shadow: 0 0 15px #cc00ff;
+}
+
+/* Animation for Emergency 3D Overlay */
+@keyframes flashText {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.depth-overlay-emergency {
+  animation: flashText 0.5s infinite;
+  color: #ff3333 !important;
+  border-color: #ff3333 !important;
+}
