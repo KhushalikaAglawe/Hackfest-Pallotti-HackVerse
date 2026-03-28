@@ -9,24 +9,45 @@ import VLMControls from "./components/VLMControls";
 import RadarPanel from "./components/RadarPanel";
 import AITerminal from "./components/AITerminal";
 
-// --- 3D DEPTH PANEL (Wapas Integrated) ---
+// --- 3D DEPTH PANEL (North-East Topographic Map) ---
 const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
   const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
+  
   return (
     <div className="panel" style={{ height: "300px", position: "relative", background: "#000", overflow: "hidden" }}>
-      <div className="panel-title" style={{ color: themeColor }}>Tactical Depth Scan</div>
+      <div className="panel-title" style={{ color: themeColor }}>⛰️ North-East Tactical Terrain Scan</div>
       <Canvas>
-        <PerspectiveCamera makeDefault position={[0, 5, 10]} />
-        <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={isEmergency ? 4 : 1} />
-        <ambientLight intensity={0.4} />
-        <pointLight position={[10, 10, 10]} intensity={1} color={themeColor} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
-          <planeGeometry args={[20, 20, 30, 30]} />
-          <MeshDistortMaterial color={themeColor} speed={isEmergency ? 3 : 1} distort={0.2} wireframe />
+        <PerspectiveCamera makeDefault position={[0, 8, 12]} />
+        <Stars radius={100} depth={50} count={1200} factor={6} saturation={0} fade speed={1} />
+        
+        {/* 🗺️ Map Grid Layer (Tactical Base) */}
+        <gridHelper args={[30, 30, themeColor, "#1a1a1a"]} position={[0, -2, 0]} />
+        
+        <ambientLight intensity={0.5} />
+        <pointLight position={[10, 15, 10]} intensity={1.5} color={themeColor} />
+
+        {/* ⛰️ Rugged Mountain Mesh (North-East Topography) */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]}>
+          <planeGeometry args={[25, 25, 70, 70]} />
+          <MeshDistortMaterial 
+            color={themeColor} 
+            speed={isEmergency ? 5 : 1.2} 
+            distort={0.65} // High distortion for pahaadi terrain
+            wireframe 
+            opacity={0.4}
+            transparent
+          />
         </mesh>
-        <OrbitControls enableZoom={false} />
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.4} />
       </Canvas>
+
+      {/* North East Coordinates Overlay */}
+      <div style={{ position: 'absolute', bottom: '10px', right: '15px', color: themeColor, fontSize: '9px', fontFamily: 'monospace', textAlign: 'right', opacity: 0.8 }}>
+        REGION: NE-SECTOR (ARUNACHAL) <br/>
+        LAT: 27.58°N | LON: 91.86°E <br/>
+        ALTITUDE: 3500m MSL
+      </div>
     </div>
   );
 };
@@ -48,16 +69,19 @@ export default function App() {
 
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8000/ws");
-    socket.onopen = () => { setWsConnected(true); setLogs(p => [...p, "[WS] CONNECTED"]); };
+    socket.onopen = () => { setWsConnected(true); setLogs(p => [...p, "[WS] CONNECTED TO NE-SECTOR"]); };
     socket.onclose = () => { setWsConnected(false); setLogs(p => [...p, "[WS] DISCONNECTED"]); };
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.system_recommendation) setRecommendation(data.system_recommendation.toUpperCase());
       if (data.alert_level) setAlert(data.alert_level);
+      
+      // ✅ Radar Dots/Persons Binding
       if (data.detected_persons) {
         setPersons(data.detected_persons);
         setSurvivors(data.total_survivors || data.detected_persons.length);
       }
+
       if (audioEnabled) {
         if (data.alert_level === "EMERGENCY") { sounds.current.emergency.loop = true; sounds.current.emergency.play().catch(()=>{}); }
         else { sounds.current.emergency.pause(); sounds.current.emergency.currentTime = 0; }
@@ -88,11 +112,11 @@ export default function App() {
       <div className="main-grid">
         <div className="left-panel"><VLMControls /></div>
         <div className="center-panel"><VideoPlayer /></div>
+        {/* ✅ Radar dots are passed here */}
         <div className="right-panel"><RadarPanel persons={persons} /></div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2.5fr 1fr", gap: "10px", marginTop: "10px" }}>
-        {/* ✅ 3D DEPTH SCAN COMPONENT HERE */}
         <DepthPanel alertStatus={alert} />
         
         <div className="panel triage">
