@@ -1,17 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import "./styles/global.css";
+
+// --- 3D & COMPONENT IMPORTS ---
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, MeshDistortMaterial, Stars } from '@react-three/drei';
-
-// Components
 import VideoPlayer from "./components/VideoPlayer";
 import VLMControls from "./components/VLMControls";
 import RadarPanel from "./components/RadarPanel";
 import AITerminal from "./components/AITerminal";
 
-const DepthPanel = ({ alertStatus, pCount }) => {
+// --- 3D DEPTH PANEL COMPONENT ---
+const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
   const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
+
   return (
     <div className="panel" style={{ height: "300px", position: "relative", background: "#000", overflow: "hidden" }}>
       <div className="panel-title" style={{ color: themeColor }}>Tactical Depth Scan</div>
@@ -36,7 +38,7 @@ export default function App() {
   const [recommendation, setRecommendation] = useState("WAITING FOR DATA...");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [survivors, setSurvivors] = useState(0);
-  const [logs, setLogs] = useState(["[SYSTEM] Connecting to WebSocket..."]);
+  const [logs, setLogs] = useState(["[SYSTEM] Initializing Guardian Eye..."]);
 
   const sounds = useRef({
     emergency: new Audio("/sounds/siren.mp3"),
@@ -44,75 +46,69 @@ export default function App() {
     target: new Audio("/sounds/targetlock.mp3"),
   });
 
-  // --- 1. WEBSOCKET CONNECTION ---
+  // --- 📡 WEBSOCKET CONNECTION ---
   useEffect(() => {
-    // Replace with your actual backend WS URL (e.g., ws://localhost:8000/ws)
-    const socket = new WebSocket("ws://your-backend-url/ws");
+    const socket = new WebSocket("ws://localhost:8000/ws");
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       
-      // Bind "system_recommendation" to the UI
-      if (data.system_recommendation) {
-        setRecommendation(data.system_recommendation.toUpperCase());
-      }
-
-      // Update Alert State based on backend logic
-      if (data.alert_level) setAlert(data.alert_level); 
+      if (data.system_recommendation) setRecommendation(data.system_recommendation.toUpperCase());
+      if (data.alert_level) setAlert(data.alert_level);
       if (data.detected_persons) {
         setPersons(data.detected_persons);
         setSurvivors(data.total_survivors || data.detected_persons.length);
       }
 
-      // Trigger Sirens via WebSocket signal
+      // --- 🔊 SIREN LOGIC ---
       if (audioEnabled) {
         if (data.alert_level === "EMERGENCY") {
           sounds.current.emergency.loop = true;
           sounds.current.emergency.play().catch(() => {});
-        } else if (data.alert_level === "WARNING") {
-          sounds.current.warning.play().catch(() => {});
+        } else {
+          sounds.current.emergency.pause();
+          sounds.current.emergency.currentTime = 0;
         }
+
+        if (data.alert_level === "WARNING") sounds.current.warning.play().catch(() => {});
         if (data.target_locked) sounds.current.target.play().catch(() => {});
       }
     };
 
     socket.onopen = () => setLogs(p => [...p, "[WS] CONNECTION ESTABLISHED"]);
-    socket.onerror = () => setLogs(p => [...p, "[WS] CONNECTION ERROR"]);
-    
+    socket.onerror = () => setLogs(p => [...p, "[WS] CONNECTION ERROR - CHECK BACKEND"]);
+
     return () => socket.close();
   }, [audioEnabled]);
 
-  // --- 2. POST ACTION: RESCUE ---
-  const handleRescue = async (id) => {
-    try {
-      const response = await fetch(`/api/action/rescue/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (response.ok) {
-        setLogs(p => [...p, `[ACTION] RESCUE INITIATED FOR ID: ${id}`]);
-      }
-    } catch (err) {
-      console.error("Rescue failed", err);
+  // --- 🛠️ ACTIONS ---
+  const toggleAudio = () => {
+    if (audioEnabled) {
+      Object.values(sounds.current).forEach(s => { s.pause(); s.currentTime = 0; });
+      setAudioEnabled(false);
+    } else {
+      setAudioEnabled(true);
     }
   };
 
-  const toggleAudio = () => {
-    setAudioEnabled(!audioEnabled);
-    if (audioEnabled) Object.values(sounds.current).forEach(s => { s.pause(); s.currentTime = 0; });
+  const handleRescue = async (id) => {
+    try {
+      await fetch(`http://localhost:8000/api/action/rescue/${id}`, { method: 'POST' });
+      setLogs(p => [...p, `[ACTION] RESCUE INITIATED FOR ID: ${id}`]);
+    } catch (err) {
+      setLogs(p => [...p, `[ERROR] ACTION FAILED`]);
+    }
   };
 
   return (
     <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
       
-      {/* FLASHING BANNER WITH RECOMMENDATION */}
-      <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: alert === 'EMERGENCY' ? '#ff3333' : '#111' }}>
-        <div style={{ fontWeight: 'bold', animation: 'blink 1.5s infinite' }}>
-          {alert === "NORMAL" ? "🛡️ GUARDIAN EYE" : `⚠️ ${recommendation}`}
+      <div className="header" style={{ background: alert === 'EMERGENCY' ? '#ff3333' : '#111' }}>
+        <div className={alert !== "NORMAL" ? "flashing-text" : ""}>
+          {alert === "NORMAL" ? "🛡️ GUARDIAN EYE" : `⚠️ RECOMMENDATION: ${recommendation}`}
         </div>
-        
-        <button onClick={toggleAudio} className={`btn ${audioEnabled ? 'red' : 'green'}`} style={{ width: '150px', fontSize: '10px' }}>
-          {audioEnabled ? "MUTE" : "ENABLE SIRENS"}
+        <button onClick={toggleAudio} className={`btn ${audioEnabled ? 'red' : 'green'}`} style={{ width: '150px' }}>
+          {audioEnabled ? "🔇 MUTE SIRENS" : "🔊 ENABLE SIRENS"}
         </button>
       </div>
 
@@ -121,43 +117,43 @@ export default function App() {
         <div className="center-panel"><VideoPlayer /></div>
         <div className="right-panel">
           <RadarPanel persons={persons} />
-          {/* Checkmark buttons for Rescue */}
           {persons.map((p, i) => (
-            <button key={i} onClick={() => handleRescue(p.id || i)} className="btn green" style={{ fontSize: '9px', marginTop: '5px' }}>
-              ✔️ RESCUE UNIT {p.id || i}
+            <button key={i} onClick={() => handleRescue(p.id || i)} className="btn green" style={{ marginTop: '5px', fontSize: '10px' }}>
+              RESCUE UNIT {p.id || i} ✔️
             </button>
           ))}
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2.5fr 1fr", gap: "10px", marginTop: "10px" }}>
-        <DepthPanel alertStatus={alert} pCount={persons.length} />
+        <DepthPanel alertStatus={alert} />
         <div className="panel triage">
-          <div className="panel-title">Mission Survivors</div>
+          <div className="panel-title">Survivors</div>
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <span style={{ fontSize: '64px', color: '#00ff9c' }}>{survivors}</span>
-            <div style={{ fontSize: '10px' }}>BACKEND VERIFIED</div>
+            <span style={{ fontSize: '64px', color: '#00ff9c', fontWeight: 'bold' }}>{survivors}</span>
+            <div style={{ fontSize: '10px', opacity: 0.6 }}>BACKEND VERIFIED</div>
           </div>
         </div>
       </div>
 
       <div className="bottom-grid" style={{ marginTop: "10px" }}>
         <div className="panel vip">
-          <div className="panel-title">AI RECOMMENDATION</div>
-          <div style={{ color: '#00ff9c', fontSize: '11px' }}>{recommendation}</div>
+          <div className="panel-title">AI ADVISORY</div>
+          <div style={{ color: '#00ff9c', fontSize: '12px' }}>{recommendation}</div>
         </div>
         <div className="panel" style={{ borderColor: '#ffaa00' }}>
           <div className="panel-title" style={{ color: '#ffaa00' }}>Mission Control</div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-            <button className="btn blue" style={{ flex: 1 }}>EXPORT</button>
+            <button className="btn blue" style={{ flex: 1 }}>EXPORT REPORT</button>
             <button onClick={() => window.location.reload()} className="btn red" style={{ flex: 1 }}>END MISSION</button>
           </div>
         </div>
         <div className="panel hazard">
-          <div className="panel-title">Status</div>
-          <div style={{ fontSize: '20px', color: alert === 'EMERGENCY' ? 'red' : '#00ff9c' }}>{alert}</div>
+          <div className="panel-title">System Status</div>
+          <div style={{ fontSize: '24px', color: alert === 'EMERGENCY' ? 'red' : '#00ff9c' }}>{alert}</div>
         </div>
       </div>
+
       <AITerminal logs={logs} />
     </div>
   );

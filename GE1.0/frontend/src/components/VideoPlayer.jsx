@@ -1,148 +1,58 @@
 import { useState, useRef, useEffect } from "react";
 
 export default function VideoPlayer() {
-  const [source, setSource] = useState("");
   const [videoURL, setVideoURL] = useState(null);
   const [isWebcam, setIsWebcam] = useState(false);
-  const [mode, setMode] = useState("RGB"); // RGB | THERMAL
-  const [streamURL, setStreamURL] = useState(null); // ✅ backend stream
+  const [mode, setMode] = useState("RGB"); 
+  const [streamURL, setStreamURL] = useState(null); 
 
   const videoRef = useRef(null);
 
-  // 🎥 Start Webcam
   const startWebcam = async () => {
     setIsWebcam(true);
     setVideoURL(null);
     setStreamURL(null);
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
-    } catch (err) {
-      console.log("Webcam error:", err);
-    }
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch (err) { console.log("Webcam error:", err); }
   };
 
-  // 📁 Handle Upload
-  const handleUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setIsWebcam(false);
-      setStreamURL(null);
-      setVideoURL(URL.createObjectURL(file));
-    }
-  };
-
-  // 📡 CONNECT BACKEND STREAM
   const handleConnect = () => {
     setIsWebcam(false);
     setVideoURL(null);
-
-    // 👉 backend stream endpoint
-    setStreamURL("http://127.0.0.1:8000/api/stream");
+    // ✅ CONNECTING TO BACKEND WEBCAM
+    setStreamURL("http://localhost:8000/webcam"); 
   };
 
-  // 🧹 Cleanup webcam on unmount
-  useEffect(() => {
-    return () => {
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  // 🎨 Thermal Filter
-  const thermalStyle =
-    mode === "THERMAL"
-      ? {
-          filter: "contrast(200%) saturate(300%) hue-rotate(180deg)",
-        }
-      : {};
+  const thermalStyle = mode === "THERMAL" 
+    ? { filter: "contrast(200%) saturate(300%) hue-rotate(180deg) brightness(0.8)" } 
+    : {};
 
   return (
     <div className="panel">
-      <div className="panel-title">TACTICAL VIDEO</div>
+      <div className="panel-title">TACTICAL VIDEO FEED</div>
 
-      {/* 🔌 INPUT SOURCE */}
-      <input
-        value={source}
-        onChange={(e) => setSource(e.target.value)}
-        placeholder="0 or IP stream"
-      />
-
-      {/* 🔗 CONNECT BUTTON */}
-      <button className="btn green" onClick={handleConnect}>
-        CONNECT
-      </button>
-
-      {/* 🎛️ RGB / THERMAL */}
-      <div style={{ display: "flex", gap: "5px", marginTop: "5px" }}>
-        <button
-          className={`btn ${mode === "RGB" ? "green" : ""}`}
-          onClick={() => setMode("RGB")}
-        >
-          RGB
-        </button>
-
-        <button
-          className={`btn ${mode === "THERMAL" ? "orange" : ""}`}
-          onClick={() => setMode("THERMAL")}
-        >
-          THERMAL
-        </button>
+      <div style={{ display: "flex", gap: "5px", marginBottom: "10px" }}>
+        <button className="btn green" onClick={handleConnect}>📡 CONNECT STREAM</button>
+        <button className={`btn ${mode === "RGB" ? "green" : ""}`} onClick={() => setMode("RGB")}>RGB</button>
+        <button className={`btn ${mode === "THERMAL" ? "orange" : ""}`} onClick={() => setMode("THERMAL")}>THERMAL</button>
+        <button className="btn blue" onClick={startWebcam}>LOCAL WEBCAM</button>
       </div>
 
-      {/* 🎥 CONTROLS */}
-      <button className="btn blue" onClick={startWebcam}>
-        🎥 USE WEBCAM
-      </button>
-
-      <input
-        type="file"
-        accept="video/*"
-        onChange={handleUpload}
-        style={{ marginTop: "5px" }}
-      />
-
-      {/* 📺 VIDEO DISPLAY */}
-      <div
-        style={{
-          height: "300px",
-          border: "1px solid #00ff00",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginTop: "5px",
-        }}
-      >
+      <div style={{ height: "320px", background: "#000", border: "1px solid #00ff00", position: "relative", overflow: "hidden" }}>
         {isWebcam ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            width="100%"
-            style={thermalStyle}
-          />
+          <video ref={videoRef} autoPlay playsInline width="100%" style={thermalStyle} />
         ) : videoURL ? (
-          <video
-            src={videoURL}
-            controls
-            autoPlay
-            width="100%"
-            style={thermalStyle}
-          />
+          <video src={videoURL} controls autoPlay width="100%" style={thermalStyle} />
         ) : streamURL ? (
-          <img
-            src={streamURL}
-            alt="live stream"
-            width="100%"
-            style={thermalStyle}
-          />
+          <img src={streamURL} alt="live" width="100%" style={thermalStyle} onError={() => setStreamURL(null)} />
         ) : (
-          "VIDEO FEED"
+          <div style={{ color: "#00ff00", textAlign: "center", marginTop: "140px" }}>[ NO SIGNAL ]</div>
         )}
         
+        { (isWebcam || streamURL) && <div className="live-tag">● LIVE</div> }
       </div>
     </div>
   );
-} 
+}
