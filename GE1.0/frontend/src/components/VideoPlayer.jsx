@@ -1,57 +1,59 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 export default function VideoPlayer() {
   const [videoURL, setVideoURL] = useState(null);
-  const [isWebcam, setIsWebcam] = useState(false);
-  const [mode, setMode] = useState("RGB"); 
-  const [streamURL, setStreamURL] = useState(null); 
-
+  const [streamURL, setStreamURL] = useState(null);
+  const [mode, setMode] = useState("RGB"); // RGB | THERMAL
   const videoRef = useRef(null);
 
-  const startWebcam = async () => {
-    setIsWebcam(true);
+  const handleConnect = (e) => {
+    e.preventDefault();
     setVideoURL(null);
-    setStreamURL(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-    } catch (err) { console.log("Webcam error:", err); }
-  };
-
-  const handleConnect = () => {
-    setIsWebcam(false);
-    setVideoURL(null);
-    // ✅ CONNECTING TO BACKEND WEBCAM
     setStreamURL("http://localhost:8000/webcam"); 
   };
 
+  const handleUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setStreamURL(null);
+      setVideoURL(URL.createObjectURL(file));
+    }
+  };
+
   const thermalStyle = mode === "THERMAL" 
-    ? { filter: "contrast(200%) saturate(300%) hue-rotate(180deg) brightness(0.8)" } 
+    ? { filter: "contrast(200%) saturate(300%) hue-rotate(180deg) brightness(0.9)" } 
     : {};
 
   return (
     <div className="panel">
-      <div className="panel-title">TACTICAL VIDEO FEED</div>
-
+      <div className="panel-title">TACTICAL VIDEO</div>
+      
+      {/* 🔘 TOGGLE GROUP */}
       <div style={{ display: "flex", gap: "5px", marginBottom: "10px" }}>
-        <button className="btn green" onClick={handleConnect}>📡 CONNECT STREAM</button>
-        <button className={`btn ${mode === "RGB" ? "green" : ""}`} onClick={() => setMode("RGB")}>RGB</button>
-        <button className={`btn ${mode === "THERMAL" ? "orange" : ""}`} onClick={() => setMode("THERMAL")}>THERMAL</button>
-        <button className="btn blue" onClick={startWebcam}>LOCAL WEBCAM</button>
+        <button className="btn green" onClick={handleConnect}>📡 CONNECT</button>
+        
+        <button className={`btn ${mode === "RGB" ? "green" : "blue"}`} onClick={() => setMode("RGB")}>
+          RGB
+        </button>
+        
+        <button className={`btn ${mode === "THERMAL" ? "orange" : "blue"}`} onClick={() => setMode("THERMAL")}>
+          THERMAL
+        </button>
+
+        <label className="btn blue" style={{ cursor: 'pointer', flex: 1, textAlign: 'center' }}>
+          📁 UPLOAD
+          <input type="file" accept="video/*" onChange={handleUpload} style={{ display: 'none' }} />
+        </label>
       </div>
 
-      <div style={{ height: "320px", background: "#000", border: "1px solid #00ff00", position: "relative", overflow: "hidden" }}>
-        {isWebcam ? (
-          <video ref={videoRef} autoPlay playsInline width="100%" style={thermalStyle} />
+      <div style={{ height: "320px", background: "#000", border: "1px solid #00ff00", position: "relative", display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        {streamURL ? (
+          <img src={streamURL} alt="Live" style={{ width: '100%', height: '100%', objectFit: 'cover', ...thermalStyle }} />
         ) : videoURL ? (
           <video src={videoURL} controls autoPlay width="100%" style={thermalStyle} />
-        ) : streamURL ? (
-          <img src={streamURL} alt="live" width="100%" style={thermalStyle} onError={() => setStreamURL(null)} />
         ) : (
-          <div style={{ color: "#00ff00", textAlign: "center", marginTop: "140px" }}>[ NO SIGNAL ]</div>
+          <div style={{ color: "#00ff00" }}>[ NO SIGNAL ]</div>
         )}
-        
-        { (isWebcam || streamURL) && <div className="live-tag">● LIVE</div> }
       </div>
     </div>
   );
