@@ -143,6 +143,7 @@ input:focus {
   0% { box-shadow: 0 0 5px red; }
   50% { box-shadow: 0 0 20px red; }
   100% { box-shadow: 0 0 5px red; }
+<<<<<<< HEAD
 }
 
 .app {
@@ -220,4 +221,6 @@ input:focus {
 .triage {
   border-color: #ffaa00;
   box-shadow: 0 0 10px #ffaa0055;
+=======
+>>>>>>> e06eb8d349f42445b552363386a7dc1eeb96157c
 }
