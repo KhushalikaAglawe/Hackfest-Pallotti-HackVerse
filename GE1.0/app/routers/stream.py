@@ -14,7 +14,9 @@ import requests
 import base64
 import re
 import datetime
+import torch
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
 from typing import AsyncGenerator
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, HTMLResponse
