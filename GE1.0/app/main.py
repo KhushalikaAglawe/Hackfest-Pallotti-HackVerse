@@ -32,20 +32,24 @@ from app.modules.detection import detector
 logger = get_logger(__name__)
 
 # 🚀 APP INIT
-app = FastAPI(
-    title="Guardian Eye — SAR Backend",
-    description="AI-powered SAR Operations for IAF & Indian Army",
-    version="1.0.0"
-)
+app = FastAPI(title="Guardian Eye API")
 
-# 🌐 CORS CONFIG
+# 🚀 STEP 1: OPEN THE GATES (Must be BEFORE include_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 🚀 STEP 2: INCLUDE ROUTERS
+app.include_router(stream.router, prefix="/api/stream", tags=["stream"])
+app.include_router(health.router, prefix="/api/health", tags=["System"])
+app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
+app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
+app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
+app.include_router(history.router, prefix="/api/history", tags=["History"])
 
 # 📂 DIRECTORY SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -57,15 +61,6 @@ os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
 
 # 📂 MOUNT STATIC FILES
 app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs")
-
-# 📡 ROUTER REGISTRATION
-# Note: Humne prefixes ko clean rakha hai taaki frontend easily call kar sake
-app.include_router(health.router, prefix="/api/health", tags=["System"])
-app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
-app.include_router(stream.router, prefix="/api/stream", tags=["Live Stream"])
-app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(history.router, prefix="/api/history", tags=["History"])
 
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT

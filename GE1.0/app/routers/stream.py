@@ -50,7 +50,6 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
@@ -68,6 +67,8 @@ manager = ConnectionManager()
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    # 🚀 FORCE ACCEPT (This bypasses the 403 check)
+    await websocket.accept(subprotocol=None) 
     await manager.connect(websocket)
     try:
         while True:
@@ -128,6 +129,9 @@ def _ai_processing_loop(loop):
                 for p in store.persons.values():
                     if (current_time - getattr(p, 'last_seen_epoch', 0)) < 2.0:
                         p_data = p.__dict__.copy()
+                        
+                        p_data["rel_x"] = (p.x - 320) / 320
+                        p_data["rel_y"] = (240 - p.y) / 240
                         
                         # Calculate Triage Score
                         triage_score = 10 

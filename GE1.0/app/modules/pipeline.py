@@ -190,6 +190,8 @@ def process_frame(
             thermal_score=0.6,
         )
 
+        person.last_seen_epoch = time.time()
+
         person.status = posture_status
         person.x = center_x
         person.y = center_y

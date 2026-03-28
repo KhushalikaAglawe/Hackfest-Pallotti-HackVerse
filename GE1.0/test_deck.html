@@ -106,24 +106,24 @@ h2, h3 { margin-top: 0; color: #0f0; text-transform: uppercase; border-bottom: 1
 <script>
 // 1. VIDEO SOURCE LOGIC
 function switchOptics(mode) {
-    document.getElementById("videoFeed").src = "/api/stream/" + mode + "?" + new Date().getTime();
+    document.getElementById("videoFeed").src = "http://127.0.0.1:8000/api/stream/" + mode + "?" + new Date().getTime();
 }
 async function setVideoSource(sourceValue) {
     if(!sourceValue) return;
     const formData = new FormData(); formData.append("source", sourceValue);
-    try { await fetch("/api/stream/source", { method: "POST", body: formData }); } catch(e) { console.log(e); }
+    try { await fetch("http://127.0.0.1:8000/api/stream/source", { method: "POST", body: formData }); } catch(e) { console.log(e); }
     switchOptics('webcam');
 }
 async function uploadVideo(event) {
     const file = event.target.files[0];
     if (!file) return;
     const formData = new FormData(); formData.append("file", file);
-    await fetch("/api/stream/upload_video", { method: "POST", body: formData });
+    await fetch("http://127.0.0.1:8000/api/stream/upload_video", { method: "POST", body: formData });
     switchOptics('webcam');
 }
 
 // 2. WEBSOCKET LOGIC 
-const wsUrl = `ws://${window.location.host}/api/stream/ws`;
+const wsUrl = `ws://127.0.0.1:8000/api/stream/ws`;
 const ws = new WebSocket(wsUrl);
 
 ws.onmessage = function(event) {
@@ -233,13 +233,13 @@ function updateRadar(persons){
 // 4. MOONDREAM VLM AGENTS
 async function scanHazards() {
     const out = document.getElementById("hazardOutput"); out.innerText = "VLM Loading... (This may take 30-45s)"; out.style.color = "#00ccff";
-    try { const res = await fetch("/api/stream/vlm/hazard", { method: "POST" }); const data = await res.json(); out.innerText = data.response; out.style.color = "#fff"; } 
+    try { const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/hazard", { method: "POST" }); const data = await res.json(); out.innerText = data.response; out.style.color = "#fff"; } 
     catch (e) { out.innerText = "Timeout Error. Is Ollama running?"; }
 }
 async function runTriage() {
     const out = document.getElementById("triageOutput"); out.innerText = "VLM Analyzing injuries... Please wait."; out.style.color = "#ffaa00";
     const formData = new FormData(); formData.append("person_id", "P-0001"); 
-    try { const res = await fetch("/api/stream/vlm/triage", { method: "POST", body: formData }); const data = await res.json(); out.innerText = data.response; out.style.color = "#fff"; } 
+    try { const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/triage", { method: "POST", body: formData }); const data = await res.json(); out.innerText = data.response; out.style.color = "#fff"; } 
     catch (e) { out.innerText = "Timeout Error. Is Ollama running?"; }
 }
 
@@ -249,14 +249,14 @@ async function setVIP() {
     const out = document.getElementById("vipOutput"); out.innerText = "LLM computing mathematical target vectors... Please wait."; out.style.color = "#cc00ff";
     const formData = new FormData(); formData.append("top_color", topColor); formData.append("bottom_color", bottomColor);
     try {
-        const res = await fetch("/api/stream/vlm/vip", { method: "POST", body: formData }); const data = await res.json();
+        const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/vip", { method: "POST", body: formData }); const data = await res.json();
         out.innerText = `[LLM TARGET LOCKED]\nTarget Profile: ${topColor} / ${bottomColor}\n\nSystem Data:\n${data.status}`; out.style.color = "#0f0";
     } catch (e) { out.innerText = "Timeout Error. Is Ollama running?"; }
 }
 async function autoKmeansLock() {
     const out = document.getElementById("vipOutput"); out.innerText = "Calibrating K-Means sensor to center frame... DO NOT MOVE."; out.style.color = "#cc00ff";
     try {
-        const res = await fetch("/api/stream/vlm/kmeans_lock", { method: "POST" }); const data = await res.json();
+        const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/kmeans_lock", { method: "POST" }); const data = await res.json();
         out.innerText = `[VISUAL TARGET LOCKED]\n\nSystem Data:\n${data.status}`; out.style.color = "#0f0";
     } catch (e) { out.innerText = "Calibration Error."; }
 }
@@ -264,8 +264,8 @@ async function autoKmeansLock() {
 // 6. MISSION CONTROL
 async function finishMission(){
     if(!confirm("Terminate Mission and Generate Tactical Report?")) return;
-    await fetch("/api/stream/terminate",{method:"POST"});
-    window.open("/api/stream/download_report","_blank");
+    await fetch("http://127.0.0.1:8000/api/stream/terminate",{method:"POST"});
+    window.open("http://127.0.0.1:8000/api/stream/download_report","_blank");
 }
 
 // 🚀 7. HISTORY & ANALYTICS INTEGRATION (The New Part)
