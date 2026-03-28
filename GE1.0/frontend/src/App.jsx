@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./styles/global.css";
 
-// ✅ Correct Imports (CASE FIXED)
+// Components
 import VideoPlayer from "./components/VideoPlayer";
 import VLMControls from "./components/VLMControls";
 import RadarPanel from "./components/RadarPanel";
@@ -10,7 +10,6 @@ import TelemetryPanel from "./components/TelemetryPanel";
 import AlertsBanner from "./components/AlertsBanner";
 import MissionControl from "./components/MissionControl";
 import BottomPanels from "./components/BottomPanels";
-
 
 export default function App() {
 
@@ -23,6 +22,10 @@ export default function App() {
   const [persons, setPersons] = useState([]);
   const [alert, setAlert] = useState("NORMAL");
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [logs, setLogs] = useState([
+    "[SYSTEM] Boot sequence initiated...",
+    "[AI] Awaiting commands..."
+  ]);
 
   const enableAudio = () => {
     Object.values(sounds).forEach((s) => {
@@ -34,66 +37,82 @@ export default function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPersons([
-        {
-          id: "P-001",
-          status: Math.random() > 0.5 ? "Standing" : "Injured",
-          score: Math.floor(Math.random() * 150),
-        },
-      ]);
 
-        const [logs, setLogs] = useState([
-       "[SYSTEM] Boot sequence initiated...",
-        "[AI] Awaiting commands..."
-      ]);
+      const dummy = {
+        id: "P-001",
+        status: Math.random() > 0.5 ? "Standing" : "Injured",
+        score: Math.floor(Math.random() * 150),
+      };
+
+      setPersons([dummy]);
+
       setLogs((prev) => [
-  ...prev,
-  "[AI] Hazard scan complete...",
-]);
-setLogs((prev) => [
-  ...prev.slice(-5), // keep last 5 logs only
-  "[AI] New update received..."
-]);
+        ...prev.slice(-5),
+        `[AI] ${dummy.status} detected (${dummy.score})`
+      ]);
 
       const states = ["NORMAL", "WARNING", "EMERGENCY"];
       const random = states[Math.floor(Math.random() * 3)];
       setAlert(random);
 
       if (audioEnabled) {
-        if (random === "EMERGENCY") sounds.emergency.play();
-        if (random === "WARNING") sounds.warning.play();
+        if (random === "EMERGENCY") {
+          sounds.emergency.loop = true;
+          sounds.emergency.play();
+        }
+        if (random === "WARNING") {
+          sounds.warning.play();
+        }
       }
+
     }, 5000);
 
     return () => clearInterval(interval);
   }, [audioEnabled]);
 
-  return (
-    <div className="app">
+ return (
+  <div className="app">
 
-      {!audioEnabled && (
-        <button onClick={enableAudio}>🔊 Enable Audio</button>
-      )}
+    <div className="header">
+      🚁 GUARDIAN EYE — EDGE COMMAND DECK
+    </div>
 
-      <div className="header">
-        🚁 GUARDIAN EYE - EDGE COMMAND DECK
-      </div>
+    {/* TOP GRID */}
+    <div className="main-grid">
 
-      <AlertsBanner alert={alert} />
-
-      <div className="top-section">
+      <div className="left-panel">
         <VLMControls />
-        <VideoPlayer />
-        <RadarPanel />
       </div>
 
-      <TelemetryPanel persons={persons} />
+      <div className="center-panel">
+        <VideoPlayer />
+      </div>
 
-      <AITerminal />
-      <MissionControl />
-      <BottomPanels />
-      <AITerminal logs={logs} />
+      <div className="right-panel">
+        <RadarPanel persons={persons} />
+      </div>
 
     </div>
-  );
+
+    {/* ✅ SIMPLE BOTTOM TEST */}
+    <div className="bottom-grid">
+
+  <div className="panel vip">
+    <h3>VIP TRACKER</h3>
+  </div>
+
+  <div className="panel hazard">
+    <h3>HAZARD</h3>
+  </div>
+
+  <div className="panel triage">
+    <h3>TRIAGE</h3>
+  </div>
+  
+
+</div>
+ <AITerminal logs={logs || []} />
+
+  </div>
+);
 }

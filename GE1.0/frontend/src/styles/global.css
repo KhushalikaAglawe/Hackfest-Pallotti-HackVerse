@@ -144,3 +144,80 @@ input:focus {
   50% { box-shadow: 0 0 20px red; }
   100% { box-shadow: 0 0 5px red; }
 }
+
+.app {
+  padding: 10px;
+}
+
+/* HEADER */
+.header {
+  color: #00ff9c;
+  font-size: 20px;
+  border-bottom: 1px solid #00ff9c;
+  padding: 10px;
+  text-align: center;
+  text-shadow: 0 0 10px #00ff9c;
+}
+
+/* MAIN GRID */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* PANELS */
+.left-panel,
+.center-panel,
+.right-panel {
+  border: 1px solid #00ff9c;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* VIDEO */
+.center-panel {
+  min-height: 400px;
+}
+
+/* RADAR */
+.right-panel {
+  min-height: 400px;
+}
+
+* {
+  box-shadow: 0 0 5px #00ff9c33;
+}
+
+/* BOTTOM GRID */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* PANEL BASE */
+.panel {
+  border: 1px solid #00ff9c;
+  padding: 10px;
+  background: rgba(0,0,0,0.85);
+  min-height: 120px;
+}
+
+/* SPECIAL COLORS */
+.vip {
+  border-color: #ff00ff;
+  box-shadow: 0 0 10px #ff00ff55;
+}
+
+.hazard {
+  border-color: #00eaff;
+  box-shadow: 0 0 10px #00eaff55;
+}
+
+.triage {
+  border-color: #ffaa00;
+  box-shadow: 0 0 10px #ffaa0055;
+}

@@ -1,26 +1,25 @@
-import { useEffect, useRef } from "react";
-import TypeWriter from "react-typewriter-effect";
+export default function AITerminal({ logs }) {
 
-export default function AITerminal({ logs = [] }) {
-  const terminalRef = useRef();
-
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [logs]);
+  // 🛑 Safety check (prevents crash)
+  if (!logs || !Array.isArray(logs)) {
+    return (
+      <div className="terminal">
+        <h3>MISSION TIMELINE</h3>
+        <p>No logs available...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="panel">
-      <div className="panel-title">AI TERMINAL</div>
+    <div className="terminal">
+      <h3>MISSION TIMELINE</h3>
 
-      <div className="terminal" ref={terminalRef}>
+      <div className="terminal-box">
         {logs.map((log, i) => (
-          <div key={i}>
-            <TypeWriter text={log} typeSpeed={30} />
-          </div>
+          <p key={i}>{log}</p>
         ))}
       </div>
+
     </div>
   );
 }
