@@ -9,49 +9,88 @@ import VLMControls from "./components/VLMControls";
 import RadarPanel from "./components/RadarPanel";
 import AITerminal from "./components/AITerminal";
 
-// --- 3D DEPTH PANEL (North-East Topographic Map) ---
 const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
   const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
-  
+
   return (
     <div className="panel" style={{ height: "300px", position: "relative", background: "#000", overflow: "hidden" }}>
-      <div className="panel-title" style={{ color: themeColor }}>⛰️ North-East Tactical Terrain Scan</div>
-      <Canvas>
-        <PerspectiveCamera makeDefault position={[0, 8, 12]} />
-        <Stars radius={100} depth={50} count={1200} factor={6} saturation={0} fade speed={1} />
-        
-        {/* 🗺️ Map Grid Layer (Tactical Base) */}
-        <gridHelper args={[30, 30, themeColor, "#1a1a1a"]} position={[0, -2, 0]} />
-        
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 15, 10]} intensity={1.5} color={themeColor} />
+      <div className="panel-title" style={{ color: themeColor, fontSize: '10px' }}>
+        📡 MiDaS V3.1 | TACTICAL 3D DEPTH MAP | SECTOR: NORTH-EAST
+      </div>
 
-        {/* ⛰️ Rugged Mountain Mesh (North-East Topography) */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]}>
-          <planeGeometry args={[25, 25, 70, 70]} />
+      <Canvas camera={{ position: [0, 12, 12], fov: 45 }}>
+        <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade />
+        <ambientLight intensity={0.8} />
+        <pointLight position={[10, 10, 10]} color={themeColor} intensity={2} />
+
+        {/* 🏔️ THE MiDaS TERRAIN MESH */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
+          <planeGeometry args={[22, 16, 100, 100]} />
           <MeshDistortMaterial 
             color={themeColor} 
-            speed={isEmergency ? 5 : 1.2} 
-            distort={0.65} // High distortion for pahaadi terrain
+            speed={isEmergency ? 4 : 1} 
+            distort={0.5} 
             wireframe 
-            opacity={0.4}
+            opacity={0.3}
             transparent
           />
         </mesh>
-        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.4} />
+
+        {/* 🟩 TACTICAL OVERLAY GRID (The boxes from your image) */}
+        <group position={[0, -1.9, 0]}>
+          {[...Array(6)].map((_, x) => 
+            [...Array(4)].map((_, z) => (
+              <group key={`${x}-${z}`} position={[(x - 2.5) * 4, 0, (z - 1.5) * 4]}>
+                {/* Square Box Outline */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[1.8, 1.85, 4]} rotation={[0, 0, Math.PI / 4]} />
+                  <meshBasicMaterial color={themeColor} transparent opacity={0.4} />
+                </mesh>
+                
+                {/* Center Crosshair (+) */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                  <circleGeometry args={[0.1, 32]} />
+                  <meshBasicMaterial color={themeColor} />
+                </mesh>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[15, 1, 1]}>
+                  <planeGeometry args={[0.05, 0.4]} />
+                  <meshBasicMaterial color={themeColor} opacity={0.6} transparent />
+                </mesh>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[1, 15, 1]}>
+                  <planeGeometry args={[0.4, 0.05]} />
+                  <meshBasicMaterial color={themeColor} opacity={0.6} transparent />
+                </mesh>
+              </group>
+            ))
+          )}
+        </group>
+
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} maxPolarAngle={Math.PI / 2.5} />
       </Canvas>
 
-      {/* North East Coordinates Overlay */}
-      <div style={{ position: 'absolute', bottom: '10px', right: '15px', color: themeColor, fontSize: '9px', fontFamily: 'monospace', textAlign: 'right', opacity: 0.8 }}>
-        REGION: NE-SECTOR (ARUNACHAL) <br/>
-        LAT: 27.58°N | LON: 91.86°E <br/>
-        ALTITUDE: 3500m MSL
+      {/* Landing Zone Labels (Simulating image text) */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', color: themeColor, fontSize: '9px', fontFamily: 'monospace', textShadow: '0 0 5px #000' }}>
+        DEPTH / LZ ANALYSIS <br/>
+        <span style={{color: '#ffaa00'}}>LZ SAFE 88%</span> | <span style={{color: '#ff3333'}}>LZ UNSAFE 22%</span>
       </div>
+
+      {/* Floating Scan Bar */}
+      <div style={{
+        position: 'absolute', width: '100%', height: '1px', background: themeColor,
+        boxShadow: `0 0 10px ${themeColor}`, top: '50%', opacity: 0.3,
+        animation: 'scan-line 3s ease-in-out infinite'
+      }}></div>
+
+      <style>{`
+        @keyframes scan-line {
+          0%, 100% { top: 20%; }
+          50% { top: 80%; }
+        }
+      `}</style>
     </div>
   );
 };
-
 export default function App() {
   const [persons, setPersons] = useState([]);
   const [alert, setAlert] = useState("NORMAL");
