@@ -1,0 +1,340 @@
+/* 🌌 GLOBAL BACKGROUND */
+body {
+  margin: 0;
+  background: #050505;
+  color: #00ff00;
+  font-family: 'JetBrains Mono', monospace;
+
+  /* GRID */
+  background-image: 
+    linear-gradient(rgba(0,255,0,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,0,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* APP */
+.app {
+  min-height: 100vh;
+}
+
+/* HEADER */
+.header {
+  padding: 10px;
+  border-bottom: 2px solid #00ff00;
+  font-size: 18px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 5px #00ff00;
+}
+
+/* GRID LAYOUT */
+.top-section {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 10px;
+  padding: 10px;
+}
+
+.bottom-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  padding: 10px;
+}
+
+/* 🧩 PANELS (GOTHAM STYLE) */
+.panel {
+  border: 1px solid #00ff00;
+  padding: 10px;
+  background: #0a0a0a;
+
+  /* 🔥 REAL GLOW */
+  box-shadow: 
+    0 0 5px #00ff00,
+    0 0 10px rgba(0,255,0,0.5),
+    inset 0 0 5px rgba(0,255,0,0.3);
+
+  position: relative;
+  overflow: hidden;
+}
+
+/* ✨ PANEL SCAN EFFECT */
+.panel::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: rgba(0,255,0,0.3);
+  top: 0;
+  left: 0;
+  animation: scan 3s linear infinite;
+}
+
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+/* PANEL TITLE */
+.panel-title {
+  border-bottom: 1px solid #00ff00;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* INPUT */
+input {
+  background: black;
+  color: #00ff00;
+  border: 1px solid #00ff00;
+  padding: 6px;
+  margin: 5px 0;
+  width: 100%;
+  outline: none;
+}
+
+input:focus {
+  box-shadow: 0 0 8px #00ff00;
+}
+
+/* BUTTONS */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin: 5px 0;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+/* 🎯 BUTTON COLORS */
+.green { background: #00ff00; color: black; }
+.blue { background: #00bcd4; color: black; }
+.orange { background: #ffaa00; color: black; }
+.red { background: #ff3333; color: black; }
+.purple { background: #cc00ff; color: black; }
+
+/* 🔥 HOVER EFFECT */
+.btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px #00ff00;
+}
+
+/* TERMINAL */
+.terminal {
+  background: black;
+  border: 1px solid #00ff00;
+  padding: 10px;
+  height: 120px;
+  overflow-y: auto;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+/* 🚨 ALERT EFFECT */
+.alert-emergency {
+  animation: pulseRed 1s infinite;
+}
+
+@keyframes pulseRed {
+  0% { box-shadow: 0 0 5px red; }
+  50% { box-shadow: 0 0 20px red; }
+  100% { box-shadow: 0 0 5px red; }
+}
+
+.app {
+  padding: 10px;
+}
+
+/* HEADER */
+.header {
+  color: #00ff9c;
+  font-size: 20px;
+  border-bottom: 1px solid #00ff9c;
+  padding: 10px;
+  text-align: center;
+  text-shadow: 0 0 10px #00ff9c;
+}
+
+/* MAIN GRID */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* PANELS */
+.left-panel,
+.center-panel,
+.right-panel {
+  border: 1px solid #00ff9c;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* VIDEO */
+.center-panel {
+  min-height: 400px;
+}
+
+/* RADAR */
+.right-panel {
+  min-height: 400px;
+}
+
+* {
+  box-shadow: 0 0 5px #00ff9c33;
+}
+
+/* BOTTOM GRID */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* PANEL BASE */
+.panel {
+  border: 1px solid #00ff9c;
+  padding: 10px;
+  background: rgba(0,0,0,0.85);
+  min-height: 120px;
+}
+
+/* SPECIAL COLORS */
+.vip {
+  border-color: #ff00ff;
+  box-shadow: 0 0 10px #ff00ff55;
+}
+
+.hazard {
+  border-color: #00eaff;
+  box-shadow: 0 0 10px #00eaff55;
+}
+
+.triage {
+  border-color: #ffaa00;
+  box-shadow: 0 0 10px #ffaa0055;
+}
+.radar-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border: 1px solid #00ff9c;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* circle */
+.radar-circle {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 2px solid #00ff9c;
+  border-radius: 50%;
+}
+
+/* sweep */
+.radar-sweep {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: conic-gradient(
+    rgba(0,255,156,0.3),
+    transparent 60%
+  );
+  border-radius: 50%;
+  animation: rotateRadar 3s linear infinite;
+}
+
+@keyframes rotateRadar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* dots */
+.radar-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #00ff9c;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #00ff9c;
+}
+
+.vip-lock {
+  animation: vipPulse 1s infinite;
+  border-color: #ff00ff;
+}
+
+@keyframes vipPulse {
+  0% { box-shadow: 0 0 5px #ff00ff; }
+  50% { box-shadow: 0 0 20px #ff00ff; }
+  100% { box-shadow: 0 0 5px #ff00ff; }
+}
+.emergency-screen {
+  animation: redFlash 1s infinite;
+}
+
+@keyframes redFlash {
+  50% { background-color: rgba(255,0,0,0.2); }
+}
+.vip-lock {
+  animation: vipPulse 0.8s infinite;
+  border: 2px solid #ff00ff;
+}
+
+@keyframes vipPulse {
+  0% { box-shadow: 0 0 5px #ff00ff; }
+  50% { box-shadow: 0 0 25px #ff00ff; }
+  100% { box-shadow: 0 0 5px #ff00ff; }
+}
+
+/* Add these specific classes to your existing global.css */
+
+/* Depth Container specifically to fit Center Panel */
+.center-panel {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  padding: 0; /* Ensures 3D canvas touches edges */
+  overflow: hidden;
+}
+
+/* Ensure canvas takes full space */
+canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Updated Button Hover to be less aggressive for small toggles */
+.mode-toggles .btn {
+  margin: 0;
+  font-size: 10px;
+}
+
+/* Active Depth Style */
+.purple {
+  background: #cc00ff;
+  color: white;
+  box-shadow: 0 0 15px #cc00ff;
+}
+
+/* Animation for Emergency 3D Overlay */
+@keyframes flashText {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.depth-overlay-emergency {
+  animation: flashText 0.5s infinite;
+  color: #ff3333 !important;
+  border-color: #ff3333 !important;
+}
