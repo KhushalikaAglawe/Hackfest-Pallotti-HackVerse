@@ -16,7 +16,16 @@ from app.core.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
+from fastapi import APIRouter
+from app.db.queries import fetch_history
 
+router = APIRouter(prefix="/api/detections", tags=["Detections"])
+
+@router.get("/history")
+async def get_mission_history():
+    # Khushalika's DB function call
+    data = fetch_history(limit=20)
+    return {"status": "success", "logs": data}
 
 @router.get("/persons")
 def get_all_persons(status: Optional[str] = None, limit: int = 100):

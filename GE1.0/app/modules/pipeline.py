@@ -10,15 +10,15 @@ import time
 import os
 import sqlite3
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, List
 from dataclasses import dataclass
 
 from app.modules.detection import detector, Detection
-from app.modules.depth import depth_analyzer, LandingZoneCandidate
+from app.modules.depth import depth_analyzer
 from app.modules.environment import analyze_environment, annotate_env_frame
 from app.modules.alerts_engine import process_alerts
 from app.modules.vip_tracker import vip_tracker
-from app.core.state import store, LandingZone
+from app.core.state import store
 from app.utils.gps import get_dummy_gps, get_gps_from_frame_index
 from app.core.config import settings
 from app.core.logger import get_logger
@@ -29,21 +29,19 @@ logger = get_logger(__name__)
 # 📦 DB PATH
 # ─────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "..", "db", "missions.db")
+DB_PATH = os.path.join(BASE_DIR, "..", "db", "mission.db")
 
-# prevent DB spam (important)
 _last_saved_track = {}
 
 # ─────────────────────────────────────────
 # 💾 SAVE TO DATABASE
 # ─────────────────────────────────────────
-def save_detection_to_db(track_id, posture, score, sector="Nagpur-Main"):
+def save_detection_to_db(track_id, posture, score, sector="IAF-SAR-Zone-1"):
     try:
         global _last_saved_track
 
         now = time.time()
 
-        # cooldown (2 sec per track)
         if track_id in _last_saved_track:
             if now - _last_saved_track[track_id] < 2:
                 return
@@ -95,8 +93,12 @@ class FrameResult:
 # ─────────────────────────────────────────
 def analyze_skeletal_posture(keypoints_array):
     try:
-        if (keypoints_array[5][2] < 0.3 or keypoints_array[6][2] < 0.3 or
-            keypoints_array[11][2] < 0.3 or keypoints_array[12][2] < 0.3):
+        if (
+            keypoints_array[5][2] < 0.3 or
+            keypoints_array[6][2] < 0.3 or
+            keypoints_array[11][2] < 0.3 or
+            keypoints_array[12][2] < 0.3
+        ):
             return None
 
         ls_x, ls_y = keypoints_array[5][:2]
@@ -124,7 +126,7 @@ def analyze_skeletal_posture(keypoints_array):
         else:
             return "LYING DOWN / INJURED"
 
-    except:
+    except Exception:
         return None
 
 
@@ -140,9 +142,7 @@ def process_frame(
     save_frames: bool = False,
 ) -> FrameResult:
 
-    t0 = time.time()
     ts = datetime.utcnow().isoformat()
-
     gps_lat, gps_lon = get_gps_from_frame_index(frame_index, total_frames)
 
     detections: List[Detection] = detector.detect(frame, use_tracking=True)
@@ -160,7 +160,6 @@ def process_frame(
         center_y = int((y1 + y2) / 2)
 
         p_lat, p_lon = get_dummy_gps(seed=det.track_id)
-
         is_vip = vip_tracker.check_vip_match(frame, det.bbox)
 
         w = x2 - x1
@@ -173,19 +172,13 @@ def process_frame(
             if sk:
                 posture_status = sk
 
-        # VIP tag
-        if is_vip:
-            det.status = f"VIP | {posture_status}"
-        else:
-            det.status = posture_status
+        det.status = f"VIP | {posture_status}" if is_vip else posture_status
 
         priority_score = 10
         if "INJURED" in posture_status or "LYING" in posture_status:
             priority_score += 50
 
-        # ─────────────────────────────
-        # 💾 DB SAVE (FIXED + SAFE)
-        # ─────────────────────────────
+        # DB SAVE
         save_detection_to_db(det.track_id, posture_status, priority_score)
 
         person = store.get_or_create_person(
@@ -253,6 +246,7 @@ def process_frame(
                 })
 
     env_out = {}
+    env = None
 
     if run_heavy:
         env = analyze_environment(frame)
@@ -266,7 +260,7 @@ def process_frame(
 
     alerts = process_alerts(
         detections=detections,
-        env_report=env if run_heavy else None,
+        env_report=env,
         frame_gps=(gps_lat, gps_lon),
         person_ids=person_ids,
     )
