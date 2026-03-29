@@ -7,7 +7,16 @@ import os
 from pathlib import Path
 from typing import List
 
+# app/core/config.py mein update karein
+import torch
 
+# Automatic device detection
+if torch.cuda.is_available():
+    DEVICE = "0" # NVIDIA GPU
+elif torch.backends.mps.is_available():
+    DEVICE = "mps" # Apple Silicon (M1/M2/M3)
+else:
+    DEVICE = "cpu" # Default fallback
 class Settings:
     # ── Paths ──────────────────────────────────────────────────
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
