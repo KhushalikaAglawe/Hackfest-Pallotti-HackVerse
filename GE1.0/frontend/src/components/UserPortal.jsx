@@ -25,6 +25,39 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
   const NDRF_BASE = [21.1458, 79.0882]; // Nagpur NDRF Base
   const startPos = useRef([21.1458, 79.0882]); 
 
+  // --- 🔊 CIVILIAN SOS AUDIO ENGINE ---
+  const [isMuted, setIsMuted] = useState(false);
+  const sirenRef = useRef(null);
+
+  useEffect(() => {
+    // 1. Create the siren only ONCE
+    if (!sirenRef.current) {
+      sirenRef.current = new Audio('/sounds/siren.mp3');
+      sirenRef.current.loop = true;
+    }
+
+    const siren = sirenRef.current;
+
+    // 2. Logic: Should it be making noise?
+    // Stop if: Muted OR SOS is inactive OR Rescue is already en route
+    const sosActive = status !== "idle";
+    const helpIsComing = status === "tracking";
+    
+    if (sosActive && !helpIsComing && !isMuted) {
+      siren.play().catch(e => console.log("Audio play blocked"));
+    } else {
+      siren.pause();
+      siren.currentTime = 0; // Reset to start for clean re-play
+    }
+
+    // Hard-wire the mute property for browser reliability
+    siren.muted = isMuted;
+
+    // 3. CLEANUP: This kills the ghost if you leave the page
+    return () => {
+      siren.pause();
+    };
+  }, [status, isMuted]); // 🚀 Now it reacts to both status and mute toggles
   const fetchLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
@@ -92,6 +125,7 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
           const myMission = data.queue.find(q => q.id === missionId);
           if (myMission && myMission.status === "EN ROUTE") {
             setStatus("tracking");
+            setIsMuted(true); // 🚨 Automatically silence the alarm when help is coming
             clearInterval(interval);
           }
         } catch (error) { console.error("Polling error"); }
@@ -143,7 +177,27 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
       </header>
 
       <div style={styles.mainGrid}>
-        <div className="panel" style={styles.controlPanel}>
+        <div className="panel" style={{ ...styles.controlPanel, position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ color: '#ff3333', margin: 0, fontSize: '14px' }}>SOS TERMINAL</h2>
+            
+            {/* 🔕 THE MUTE TOGGLE */}
+            <button 
+              onClick={() => setIsMuted(prev => !prev)} 
+              className="btn"
+              style={{
+                background: isMuted ? '#444' : '#ff3333',
+                color: isMuted ? '#888' : '#fff',
+                padding: '5px 15px',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {isMuted ? "🔈 ALARM SILENCED" : "🔊 MUTE SIREN"}
+            </button>
+          </div>
           {status === "idle" ? (
             <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
               

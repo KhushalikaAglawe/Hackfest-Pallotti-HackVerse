@@ -1,15 +1,48 @@
 import { useState, useRef } from "react";
 
 export default function VideoPlayer() {
-  const [videoURL, setVideoURL] = useState(null);
   const [streamURL, setStreamURL] = useState(null);
-  const [mode, setMode] = useState("RGB"); // RGB | THERMAL
-  const videoRef = useRef(null);
+  const [videoURL, setVideoURL] = useState(null);
+  const [ipAddress, setIpAddress] = useState("http://192.168.1.100:8080/video"); // Default example
 
-  const handleConnect = (e) => {
-    e.preventDefault();
+  const handleConnectWebcam = async () => {
+    // Switch backend to local webcam
+    const formData = new FormData();
+    formData.append("source", "0");
+
+    await fetch("http://127.0.0.1:8000/api/stream/source", { 
+      method: "POST", 
+      body: formData 
+    });
     setVideoURL(null);
-    setStreamURL("http://127.0.0.1:8000/api/stream/webcam"); 
+    setStreamURL(`http://127.0.0.1:8000/api/stream/webcam?t=${Date.now()}`);
+  };
+
+  const handleConnectDrone = async () => {
+    if (!ipAddress) return alert("Enter Drone IP first!");
+    
+    // Ensure the URL is complete
+    let fullUrl = ipAddress;
+    if (!fullUrl.startsWith('http')) fullUrl = 'http://' + fullUrl;
+    if (!fullUrl.endsWith('/video')) fullUrl = fullUrl + '/video';
+
+    const formData = new FormData();
+    formData.append("source", fullUrl);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/stream/source", {
+        method: "POST",
+        body: formData, // Sending as Form Data like your stream.py wants
+      });
+      
+      if (response.ok) {
+        setVideoURL(null);
+        // Force refresh the <img> tag by adding a timestamp
+        setStreamURL(`http://127.0.0.1:8000/api/stream/webcam?t=${Date.now()}`);
+      }
+    } catch (e) {
+      console.error("Connection failed", e);
+    }
   };
 
   const handleUpload = (e) => {
@@ -20,39 +53,53 @@ export default function VideoPlayer() {
     }
   };
 
-  const thermalStyle = mode === "THERMAL" 
-    ? { filter: "contrast(200%) saturate(300%) hue-rotate(180deg) brightness(0.9)" } 
-    : {};
-
   return (
     <div className="panel">
-      <div className="panel-title">TACTICAL VIDEO</div>
+      <div className="panel-title">TACTICAL OPTICS</div>
       
-      {/* 🔘 TOGGLE GROUP */}
-      <div style={{ display: "flex", gap: "5px", marginBottom: "10px" }}>
-        <button className="btn green" onClick={handleConnect}>📡 CONNECT</button>
-        
-        <button className={`btn ${mode === "RGB" ? "green" : "blue"}`} onClick={() => setMode("RGB")}>
-          RGB
-        </button>
-        
-        <button className={`btn ${mode === "THERMAL" ? "orange" : "blue"}`} onClick={() => setMode("THERMAL")}>
-          THERMAL
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "15px" }}>
+        {/* WEBCAM BUTTON */}
+        <button className="btn green" onClick={handleConnectWebcam} style={{ width: '100%' }}>
+          📷 ACTIVATE PRIMARY PC WEBCAM
         </button>
 
-        <label className="btn blue" style={{ cursor: 'pointer', flex: 1, textAlign: 'center' }}>
-          📁 UPLOAD
+        {/* DRONE IP INPUT ROW */}
+        <div style={{ display: "flex", gap: "5px", height: "35px" }}>
+          <input 
+            type="text" 
+            placeholder="IP ADDRESS (e.g. 100.76.202.117:8080/video)" 
+            value={ipAddress}
+            onChange={(e) => setIpAddress(e.target.value)}
+            style={{ 
+              flex: 3, 
+              background: "#000", 
+              color: "#0f0", 
+              border: "1px solid #0f0", 
+              padding: "0 10px",
+              fontFamily: "monospace",
+              fontSize: "12px",
+              outline: "none"
+            }}
+          />
+          <button className="btn blue" onClick={handleConnectDrone} style={{ flex: 1 }}>
+            🛸 CONNECT
+          </button>
+        </div>
+
+        {/* UPLOAD BUTTON */}
+        <label className="btn" style={{ cursor: 'pointer', textAlign: 'center', background: '#222', border: '1px solid #444', color: '#888' }}>
+          📁 UPLOAD OFFLINE FOOTAGE
           <input type="file" accept="video/*" onChange={handleUpload} style={{ display: 'none' }} />
         </label>
       </div>
 
-      <div style={{ height: "320px", background: "#000", border: "1px solid #00ff00", position: "relative", display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <div className="video-viewport" style={{ height: "320px", background: "#000", border: "1px solid #00ff00", position: "relative", display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         {streamURL ? (
-          <img src={streamURL} alt="Live" style={{ width: '100%', height: '100%', objectFit: 'cover', ...thermalStyle }} />
+          <img src={streamURL} alt="Live" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : videoURL ? (
-          <video src={videoURL} controls autoPlay width="100%" style={thermalStyle} />
+          <video src={videoURL} controls autoPlay loop width="100%" height="100%" style={{ objectFit: 'contain' }} />
         ) : (
-          <div style={{ color: "#00ff00" }}>[ NO SIGNAL ]</div>
+          <div style={{ color: "#0f0" }}>[ NO SIGNAL ]</div>
         )}
       </div>
     </div>

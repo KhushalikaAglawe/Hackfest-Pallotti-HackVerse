@@ -153,11 +153,89 @@ export default function App() {
 
   // --- STRIKE 1: MASTER TELEMETRY STATE ---
   const [livePersons, setLivePersons] = useState([]);
+  const [envSafety, setEnvSafety] = useState("SAFE"); // 🚀 1. ADD THIS STATE
   const [telemetry, setTelemetry] = useState({
     vip: "Awaiting VIP Lock...",
     hazard: "Awaiting Moondream Scan...",
     triage: "Awaiting Triage Request..."
   });
+
+  // ==========================================
+  // 🔊 BULLETPROOF AUDIO ENGINE V3 (VIP Only)
+  // ==========================================
+  const [audioMuted, setAudioMuted] = useState(false);
+  const sirenRef = useRef(null);
+  const warningRef = useRef(null);
+  const lockRef = useRef(null);
+  const lockTimerRef = useRef(null);
+
+  // 1. Initialize audio safely 
+  useEffect(() => {
+    if (!sirenRef.current) {
+      sirenRef.current = new Audio('/sounds/siren.mp3');
+      sirenRef.current.loop = true; 
+      
+      warningRef.current = new Audio('/sounds/warning.mp3');
+      
+      lockRef.current = new Audio('/sounds/targetlock.mp3');
+      lockRef.current.loop = true; // Loops for 7 secs, then we kill it
+    }
+  }, []);
+
+  // 2. Hardware-Level Master Mute Switch
+  useEffect(() => {
+    if (sirenRef.current) sirenRef.current.muted = audioMuted;
+    if (warningRef.current) warningRef.current.muted = audioMuted;
+    if (lockRef.current) lockRef.current.muted = audioMuted;
+  }, [audioMuted]);
+
+  // 3. SIREN: Triggers on SOS OR when Environment is in DANGER
+  useEffect(() => {
+    if (!sirenRef.current) return;
+    if (alert === "EMERGENCY" || envSafety === "DANGER") {
+      sirenRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+    } else {
+      sirenRef.current.pause();
+      sirenRef.current.currentTime = 0;
+    }
+  }, [alert, envSafety]);
+
+  // 4. HAZARD WARNING: Triggers when Moondream spots a hazard
+  useEffect(() => {
+    if (!warningRef.current) return;
+    if (telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION")) {
+      warningRef.current.currentTime = 0;
+      warningRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+    }
+  }, [telemetry.hazard]);
+
+  // 5. 🎯 VIP TARGET LOCK: 7-Second Loop (ONLY FOR VIPs)
+  useEffect(() => {
+    if (!lockRef.current) return;
+
+    // Trigger only when your VIP button gets a successful lock from the backend
+    if ((telemetry.vip.includes("Acquired") || telemetry.vip.includes("Locked")) && !audioMuted) {
+      
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      
+      lockRef.current.currentTime = 0;
+      lockRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+
+      // Cut the audio exactly 7 seconds later
+      lockTimerRef.current = setTimeout(() => {
+        if (lockRef.current) {
+          lockRef.current.pause();
+          lockRef.current.currentTime = 0;
+        }
+      }, 7000);
+      
+    } else if (telemetry.vip.includes("Awaiting") || telemetry.vip.includes("CLEAR")) {
+      // If you click "Clear Target", kill the alarm instantly
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      lockRef.current.pause();
+      lockRef.current.currentTime = 0;
+    }
+  }, [telemetry.vip, audioMuted]);
 
 
 
@@ -187,10 +265,19 @@ export default function App() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.persons) setLivePersons(data.persons);
           
-          // Optional: If your backend sends live env data, you can grab it here too
-          // if (data.environment) { ... }
+          // 🚀 RADAR GHOST BUSTER: Only keep targets seen in the last 2 seconds
+          if (data.persons) {
+            const currentTime = Date.now() / 1000;
+            const liveOnly = data.persons.filter(p => 
+              (currentTime - (p.last_seen_epoch || 0)) < 2.0
+            );
+            setLivePersons(liveOnly);
+          }
+          
+          if (data.environment && data.environment.safety_level) {
+             setEnvSafety(data.environment.safety_level);
+          }
         } catch (e) { console.error("WS Parse Error", e); }
       };
     }
@@ -345,17 +432,26 @@ export default function App() {
         <div className="header">
           <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId}</span>
           <div>
+            {/* 🔊 MUTE TOGGLE BUTTON */}
+            <button 
+              onClick={() => setAudioMuted(!audioMuted)} 
+              className="btn" 
+              style={{ background: audioMuted ? '#444' : '#ffaa00', color: audioMuted ? '#aaa' : '#000', marginRight: '10px', fontWeight: 'bold' }}>
+              {audioMuted ? "🔕 ALARMS SILENCED" : "🔊 MUTE ALARMS"}
+            </button>
+
             <button onClick={async () => {
               if(window.confirm("Mark mission secure and generate report?")) {
                 await fetch(`http://127.0.0.1:8000/api/sos/complete/${activeMissionId}`, { method: "POST" });
                 window.open("http://127.0.0.1:8000/api/stream/download_report", "_blank");
                 setView("admin-lobby");
+                setAlert("NORMAL"); // Shut off the siren when returning to lobby
               }
             }} className="btn" style={{ background: '#0f0', color: '#000', marginRight: '10px', fontWeight: 'bold' }}>
               ✅ MARK COMPLETE
             </button>
-            <button onClick={() => setView("admin-lobby")} className="btn blue" style={{ marginRight: '10px' }}>⬅️ LOBBY</button>
-            <button onClick={handleLogout} className="btn red">TERMINATE</button>
+            <button onClick={() => { setView("admin-lobby"); setAlert("NORMAL"); }} className="btn blue" style={{ marginRight: '10px' }}>⬅️ LOBBY</button>
+            <button onClick={() => { handleLogout(); setAlert("NORMAL"); }} className="btn red">TERMINATE</button>
           </div>
         </div>
 
