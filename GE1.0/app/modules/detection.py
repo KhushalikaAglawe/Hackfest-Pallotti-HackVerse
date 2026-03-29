@@ -13,7 +13,8 @@ from app.core.config import settings
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
-
+# detections.py ke andar prefix empty rakho ya sirf "/"
+router = APIRouter(tags=["Detections"])
 
 @dataclass
 class Detection:
@@ -200,3 +201,4 @@ class PersonDetector:
 
 
 detector = PersonDetector()
+

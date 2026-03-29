@@ -67,6 +67,7 @@ app.include_router(detections.router, prefix="/api/detections", tags=["Detection
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
 
+
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT
 # ─────────────────────────────────────────
