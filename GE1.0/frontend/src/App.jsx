@@ -20,8 +20,6 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- 🚀 TACTICAL DATA TABLES ---
-// Strike 1: persons is now a prop — WebSocket lives in App()
 const TacticalTables = ({ persons }) => {
   const [apiLogs, setApiLogs] = useState([]);
 
@@ -74,22 +72,17 @@ const TacticalTables = ({ persons }) => {
   );
 };
 
-// --- 🏔️ 3D TACTICAL DEPTH MAP (WITH LIVE LZ PLOTTING) ---
 const DepthPanel = ({ telemetry, personsCount }) => {
   const isHazardous = telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION") || telemetry.hazard.includes("Warning");
-  
-  // Dynamic 3D properties based on live backend data
   const themeColor = isHazardous ? "#ff3333" : "#00ff9c";
   const meshDistortion = isHazardous ? 0.8 : 0.2; 
   const meshSpeed = isHazardous ? 5 : 1; 
 
   const [lzs, setLzs] = useState([]);
 
-  // 🧠 BEHIND-THE-SCENES DATA FETCH
   useEffect(() => {
     const fetchLZs = async () => {
       try {
-        // 🚀 REMOVED ?safe_only=true so we can see the hazardous zones too!
         const res = await fetch("http://127.0.0.1:8000/api/detections/landing-zones");
         const data = await res.json();
         if (data.landing_zones) setLzs(data.landing_zones);
@@ -107,7 +100,6 @@ const DepthPanel = ({ telemetry, personsCount }) => {
         <span>LZ STATUS: {isHazardous ? "UNSAFE TERRAIN" : "CLEAR FOR LANDING"}</span>
       </div>
 
-      {/* PAWANI'S PROFESSIONAL 3D CANVAS */}
       <Canvas camera={{ position: [0, 12, 12], fov: 45 }}>
         <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade />
         <ambientLight intensity={0.8} />
@@ -118,17 +110,14 @@ const DepthPanel = ({ telemetry, personsCount }) => {
           <MeshDistortMaterial color={themeColor} speed={meshSpeed} distort={meshDistortion} wireframe opacity={0.3} transparent />
         </mesh>
 
-        {/* 🚁 PLOT ALL LZs: GREEN = SAFE, RED = UNSAFE */}
         {lzs.map((lz, i) => {
           const mapX = (lz.center_x / 640) * 22 - 11;
           const mapZ = (lz.center_y / 480) * 16 - 8;
-          
-          // Dynamic Color Logic!
           const padColor = lz.safe ? "#00ff9c" : "#ff3333"; 
           
           return (
-            <mesh key={i} position={[mapX, -0.5, mapZ]}> {/* 🚀 Raised to -0.5 so it floats above the mountains! */}
-              <cylinderGeometry args={[0.8, 0.8, 0.3, 16]} /> {/* Made them a tiny bit thicker too */}
+            <mesh key={i} position={[mapX, -0.5, mapZ]}> 
+              <cylinderGeometry args={[0.8, 0.8, 0.3, 16]} /> 
               <meshStandardMaterial color={padColor} emissive={padColor} emissiveIntensity={1.5} />
             </mesh>
           );
@@ -146,100 +135,77 @@ export default function App() {
   const [alert, setAlert] = useState("NORMAL");
   const [logs, setLogs] = useState(["[SYSTEM] Tactical Deck Online", "[AUTH] Waiting..."]);
 
-  // --- NEW BACKEND STATES (Lobby & Queue) ---
   const [backendQueue, setBackendQueue] = useState([]);
   const [backendTeams, setBackendTeams] = useState({});
   const [activeMissionId, setActiveMissionId] = useState(null);
 
-  // --- STRIKE 1: MASTER TELEMETRY STATE ---
   const [livePersons, setLivePersons] = useState([]);
-  const [envSafety, setEnvSafety] = useState("SAFE"); // 🚀 1. ADD THIS STATE
+  const [envSafety, setEnvSafety] = useState("SAFE"); 
   const [telemetry, setTelemetry] = useState({
     vip: "Awaiting VIP Lock...",
     hazard: "Awaiting Moondream Scan...",
     triage: "Awaiting Triage Request..."
   });
 
-  // ==========================================
-  // 🔊 BULLETPROOF AUDIO ENGINE V3 (VIP Only)
-  // ==========================================
   const [audioMuted, setAudioMuted] = useState(false);
   const sirenRef = useRef(null);
   const warningRef = useRef(null);
   const lockRef = useRef(null);
   const lockTimerRef = useRef(null);
 
-  // 1. Initialize audio safely 
   useEffect(() => {
     if (!sirenRef.current) {
       sirenRef.current = new Audio('/sounds/siren.mp3');
       sirenRef.current.loop = true; 
-      
       warningRef.current = new Audio('/sounds/warning.mp3');
-      
       lockRef.current = new Audio('/sounds/targetlock.mp3');
-      lockRef.current.loop = true; // Loops for 7 secs, then we kill it
+      lockRef.current.loop = true;
     }
   }, []);
 
-  // 2. Hardware-Level Master Mute Switch
   useEffect(() => {
     if (sirenRef.current) sirenRef.current.muted = audioMuted;
     if (warningRef.current) warningRef.current.muted = audioMuted;
     if (lockRef.current) lockRef.current.muted = audioMuted;
   }, [audioMuted]);
 
-  // 3. SIREN: Triggers on SOS OR when Environment is in DANGER
   useEffect(() => {
     if (!sirenRef.current) return;
-    if (alert === "EMERGENCY" || envSafety === "DANGER") {
-      sirenRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+    if (view === "admin-tactical" && (alert === "EMERGENCY" || envSafety === "DANGER")) {
+      sirenRef.current.play().catch(e => console.log("Blocked"));
     } else {
       sirenRef.current.pause();
       sirenRef.current.currentTime = 0;
     }
-  }, [alert, envSafety]);
+  }, [alert, envSafety, view]);
 
-  // 4. HAZARD WARNING: Triggers when Moondream spots a hazard
   useEffect(() => {
     if (!warningRef.current) return;
-    if (telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION")) {
+    if (view === "admin-tactical" && (telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION"))) {
       warningRef.current.currentTime = 0;
-      warningRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+      warningRef.current.play().catch(e => console.log("Blocked"));
     }
-  }, [telemetry.hazard]);
+  }, [telemetry.hazard, view]);
 
-  // 5. 🎯 VIP TARGET LOCK: 7-Second Loop (ONLY FOR VIPs)
   useEffect(() => {
     if (!lockRef.current) return;
-
-    // Trigger only when your VIP button gets a successful lock from the backend
-    if ((telemetry.vip.includes("Acquired") || telemetry.vip.includes("Locked")) && !audioMuted) {
-      
+    if (view === "admin-tactical" && (telemetry.vip.includes("Acquired") || telemetry.vip.includes("Locked")) && !audioMuted) {
       if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
-      
       lockRef.current.currentTime = 0;
-      lockRef.current.play().catch(e => console.log("Browser blocked autoplay"));
-
-      // Cut the audio exactly 7 seconds later
+      lockRef.current.play().catch(e => console.log("Blocked"));
       lockTimerRef.current = setTimeout(() => {
         if (lockRef.current) {
           lockRef.current.pause();
           lockRef.current.currentTime = 0;
         }
       }, 7000);
-      
-    } else if (telemetry.vip.includes("Awaiting") || telemetry.vip.includes("CLEAR")) {
-      // If you click "Clear Target", kill the alarm instantly
+    } else if (telemetry.vip.includes("Awaiting") || telemetry.vip.includes("CLEAR") || view !== "admin-tactical") {
       if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
       lockRef.current.pause();
       lockRef.current.currentTime = 0;
     }
-  }, [telemetry.vip, audioMuted]);
+  }, [telemetry.vip, audioMuted, view]);
 
-
-
-  // --- REAL-TIME QUEUE POLLING (Lobby) ---
   useEffect(() => {
     let interval;
     if (view === "admin-lobby") {
@@ -249,7 +215,7 @@ export default function App() {
           const data = await res.json();
           setBackendQueue(data.queue || []);
           setBackendTeams(data.teams || {});
-        } catch (e) { console.error("Backend offline or CORS issue"); }
+        } catch (e) { console.error("Backend offline"); }
       };
       fetchQueue(); 
       interval = setInterval(fetchQueue, 3000);
@@ -257,7 +223,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view]);
 
-  // --- MASTER TACTICAL WEBSOCKET ---
   useEffect(() => {
     let ws;
     if (view === "admin-tactical") {
@@ -265,16 +230,11 @@ export default function App() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
-          // 🚀 RADAR GHOST BUSTER: Only keep targets seen in the last 2 seconds
           if (data.persons) {
             const currentTime = Date.now() / 1000;
-            const liveOnly = data.persons.filter(p => 
-              (currentTime - (p.last_seen_epoch || 0)) < 2.0
-            );
+            const liveOnly = data.persons.filter(p => (currentTime - (p.last_seen_epoch || 0)) < 2.0);
             setLivePersons(liveOnly);
           }
-          
           if (data.environment && data.environment.safety_level) {
              setEnvSafety(data.environment.safety_level);
           }
@@ -283,18 +243,6 @@ export default function App() {
     }
     return () => { if (ws) ws.close(); };
   }, [view]);
-
-  async function fetchNewMessages() {
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/alerts/popups');
-      const data = await response.json();
-      if (data.alerts) {
-        data.alerts.forEach(msg => {
-          setLogs(prev => [...prev, `[USER-${msg.user}]: ${msg.content}`]);
-        });
-      }
-    } catch (e) { console.error("Polling Error", e); }
-  }
 
   async function sendQuickReply(text, msgId = "CMD-01") {
     try {
@@ -307,7 +255,6 @@ export default function App() {
     } catch (e) { console.error("Reply Error", e); }
   }
 
-  // --- MISSING FUNCTION RESTORED ---
   const handleCivilianReport = (report) => {
     setAlert("EMERGENCY");
     setLogs(p => [...p, `[ALERT] NEW SOS RECEIVED FROM CIVILIAN PORTAL`]);
@@ -325,7 +272,6 @@ export default function App() {
     setLogs(["[SYSTEM] Security logout successful"]);
   };
 
-  // --- VIEWS ---
   if (view === "landing") {
     return (
       <div className="landing-page" style={s.landing}>
@@ -370,9 +316,7 @@ export default function App() {
           <h2 style={{ color: '#0f0', margin: 0 }}>🛡️ GUARDIAN EYE - GLOBAL COMMAND LOBBY</h2>
           <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
         </header>
-
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-          {/* THE TACTICAL MAP */}
           <div className="panel" style={{ border: '1px solid #00ccff', height: '400px' }}>
             <MapContainer center={[21.1458, 79.0882]} zoom={10} style={{ height: "100%", width: "100%", background: '#0a0a0a' }}>
               <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
@@ -385,8 +329,6 @@ export default function App() {
               ))}
             </MapContainer>
           </div>
-
-          {/* ACTIVE TEAMS PANEL */}
           <div className="panel" style={{ border: '1px solid #00ff9c', overflowY: 'auto', height: '400px', padding: '15px' }}>
             <h3 style={{ color: '#00ff9c', marginTop: 0 }}>🚁 NDRF SQUADRONS</h3>
             {Object.entries(backendTeams).map(([team, info]) => (
@@ -394,30 +336,18 @@ export default function App() {
                 <h4 style={{ margin: 0, color: info.status === "AVAILABLE" ? '#00ff9c' : '#00ccff' }}>{team}</h4>
                 <p style={{ margin: '5px 0', fontSize: '12px' }}>Status: {info.status}</p>
                 {info.mission_id && (
-                  <button 
-                    onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }} 
-                    style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#000' }}>
-                    🎯 ENTER MISSION DECK
-                  </button>
+                  <button onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }} style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#000' }}>🎯 ENTER MISSION DECK</button>
                 )}
               </div>
             ))}
           </div>
         </div>
-
-        {/* DISPATCH QUEUE */}
         <div className="panel" style={{ marginTop: '20px', border: '1px solid #ff3333' }}>
           <h3 style={{ color: '#ff3333' }}>🚨 DISPATCH QUEUE</h3>
           {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
             <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', padding: '10px 0' }}>
-              <div>
-                <strong style={{ color: q.severity_score > 40 ? '#ff3333' : '#ffaa00' }}>{q.id}</strong> | Score: {q.severity_score}
-                <div style={{ fontSize: '12px', color: '#aaa' }}>{q.desc}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#fff' }}>{q.status}</div>
-                <div style={{ color: '#00ccff', fontSize: '12px' }}>{q.assigned_team || "AWAITING TEAM"}</div>
-              </div>
+              <div><strong style={{ color: q.severity_score > 40 ? '#ff3333' : '#ffaa00' }}>{q.id}</strong> | Score: {q.severity_score} <div style={{ fontSize: '12px', color: '#aaa' }}>{q.desc}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ color: '#fff' }}>{q.status}</div><div style={{ color: '#00ccff', fontSize: '12px' }}>{q.assigned_team || "AWAITING TEAM"}</div></div>
             </div>
           ))}
         </div>
@@ -425,76 +355,41 @@ export default function App() {
     );
   }
 
-  // --- ADMIN TACTICAL DECK ---
   if (view === "admin-tactical") {
     return (
       <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
         <div className="header">
           <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId}</span>
           <div>
-            {/* 🔊 MUTE TOGGLE BUTTON */}
-            <button 
-              onClick={() => setAudioMuted(!audioMuted)} 
-              className="btn" 
-              style={{ background: audioMuted ? '#444' : '#ffaa00', color: audioMuted ? '#aaa' : '#000', marginRight: '10px', fontWeight: 'bold' }}>
-              {audioMuted ? "🔕 ALARMS SILENCED" : "🔊 MUTE ALARMS"}
-            </button>
-
+            <button onClick={() => setAudioMuted(!audioMuted)} className="btn" style={{ background: audioMuted ? '#444' : '#ffaa00', color: audioMuted ? '#aaa' : '#000', marginRight: '10px', fontWeight: 'bold' }}>{audioMuted ? "🔕 ALARMS SILENCED" : "🔊 MUTE ALARMS"}</button>
             <button onClick={async () => {
-              if(window.confirm("Mark mission secure and generate report?")) {
+              if(window.confirm("Mark mission secure?")) {
                 await fetch(`http://127.0.0.1:8000/api/sos/complete/${activeMissionId}`, { method: "POST" });
                 window.open("http://127.0.0.1:8000/api/stream/download_report", "_blank");
                 setView("admin-lobby");
-                setAlert("NORMAL"); // Shut off the siren when returning to lobby
+                setAlert("NORMAL");
               }
-            }} className="btn" style={{ background: '#0f0', color: '#000', marginRight: '10px', fontWeight: 'bold' }}>
-              ✅ MARK COMPLETE
-            </button>
+            }} className="btn" style={{ background: '#0f0', color: '#000', marginRight: '10px', fontWeight: 'bold' }}>✅ MARK COMPLETE</button>
             <button onClick={() => { setView("admin-lobby"); setAlert("NORMAL"); }} className="btn blue" style={{ marginRight: '10px' }}>⬅️ LOBBY</button>
             <button onClick={() => { handleLogout(); setAlert("NORMAL"); }} className="btn red">TERMINATE</button>
           </div>
         </div>
-
         <div className="main-grid">
-          {/* Pass setTelemetry down to VLMControls so buttons can update the boxes */}
           <div className="left-panel"><VLMControls setTelemetry={setTelemetry} /></div>
           <div className="center-panel"><VideoPlayer /></div>
-          {/* Strike 2: Feed live WebSocket data to the Radar */}
           <div className="right-panel"><RadarPanel persons={livePersons} /></div>
         </div>
-
-        {/* 🚀 STRIKE 2: THE 3 TELEMETRY PANELS */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
-          <div className="panel" style={{ borderColor: '#cc00ff' }}>
-            <h3 style={{ color: '#cc00ff', fontSize: '12px', margin: 0 }}>VIP TRACKER INTEL</h3>
-            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.vip}</div>
-          </div>
-          <div className="panel" style={{ borderColor: '#00ccff' }}>
-            <h3 style={{ color: '#00ccff', fontSize: '12px', margin: 0 }}>HAZARD ANALYSIS</h3>
-            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.hazard}</div>
-          </div>
-          <div className="panel" style={{ borderColor: '#ffaa00' }}>
-            <h3 style={{ color: '#ffaa00', fontSize: '12px', margin: 0 }}>VICTIM TRIAGE</h3>
-            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.triage}</div>
-          </div>
+          <div className="panel" style={{ borderColor: '#cc00ff' }}><h3 style={{ color: '#cc00ff', fontSize: '12px', margin: 0 }}>VIP TRACKER INTEL</h3><div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.vip}</div></div>
+          <div className="panel" style={{ borderColor: '#00ccff' }}><h3 style={{ color: '#00ccff', fontSize: '12px', margin: 0 }}>HAZARD ANALYSIS</h3><div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.hazard}</div></div>
+          <div className="panel" style={{ borderColor: '#ffaa00' }}><h3 style={{ color: '#ffaa00', fontSize: '12px', margin: 0 }}>VICTIM TRIAGE</h3><div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.triage}</div></div>
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginTop: "10px" }}>
-          <DepthPanel telemetry={telemetry} personsCount={livePersons.length} />
-        </div>
-
-        <div style={{ marginTop: "10px" }}>
-          {/* Strike 2: Feed live data to the tables */}
-          <TacticalTables persons={livePersons} />
-        </div>
-
-        <div style={{marginTop: '10px'}}>
-          <AITerminal logs={logs} onReply={sendQuickReply} />
-        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginTop: "10px" }}><DepthPanel telemetry={telemetry} personsCount={livePersons.length} /></div>
+        <div style={{ marginTop: "10px" }}><TacticalTables persons={livePersons} /></div>
+        <div style={{marginTop: '10px'}}><AITerminal logs={logs} onReply={sendQuickReply} /></div>
       </div>
     );
   }
-
   return null;
 }
 
