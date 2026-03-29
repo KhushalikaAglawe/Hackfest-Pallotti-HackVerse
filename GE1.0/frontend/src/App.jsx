@@ -19,13 +19,12 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- 🚀 TACTICAL DATA TABLES (Separated Live & History) ---
+// --- 🚀 TACTICAL DATA TABLES ---
 const TacticalTables = () => {
   const [persons, setPersons] = useState([]);
   const [apiLogs, setApiLogs] = useState([]);
 
   useEffect(() => {
-    // 1. Fetch Historical Logs from your API
     const fetchHistory = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8000/api/history/logs");
@@ -35,7 +34,6 @@ const TacticalTables = () => {
     };
     fetchHistory();
 
-    // 2. Live WebSocket Connection
     const ws = new WebSocket("ws://localhost:8000/ws");
     ws.onmessage = (event) => {
       try {
@@ -48,7 +46,6 @@ const TacticalTables = () => {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px' }}>
-      {/* 🎯 LEFT: LIVE TARGET ACQUISITION (stream.py) */}
       <div className="panel" style={{ borderColor: '#333', height: '220px', overflowY: 'auto' }}>
         <div className="panel-title" style={{ color: '#ffaa00', fontSize: '10px' }}>🎯 LIVE TARGET ACQUISITION</div>
         <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse', marginTop: '5px' }}>
@@ -70,7 +67,6 @@ const TacticalTables = () => {
         </table>
       </div>
 
-      {/* 📂 RIGHT: SYSTEM HISTORY (API Logs) */}
       <div className="panel" style={{ borderColor: '#00ccff', height: '220px', overflowY: 'auto' }}>
         <div className="panel-title" style={{ color: '#00ccff', fontSize: '10px' }}>📂 SYSTEM HISTORY (DB)</div>
         <div style={{ padding: '5px' }}>
@@ -86,7 +82,6 @@ const TacticalTables = () => {
   );
 };
 
-// --- 3D TACTICAL DEPTH PANEL ---
 const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
   const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
@@ -117,6 +112,39 @@ export default function App() {
   const [alert, setAlert] = useState("NORMAL");
   const [logs, setLogs] = useState(["[SYSTEM] Tactical Deck Online", "[AUTH] Waiting..."]);
 
+  // --- 🔄 DB TEAMMATE'S POLLING LOGIC ---
+  useEffect(() => {
+    if (view === "admin") {
+      const interval = setInterval(() => {
+        fetchNewMessages();
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [view]);
+
+  async function fetchNewMessages() {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/alerts/popups');
+      const data = await response.json();
+      if (data.alerts) {
+        data.alerts.forEach(msg => {
+          setLogs(prev => [...prev, `[USER-${msg.user}]: ${msg.content}`]);
+        });
+      }
+    } catch (e) { console.error("Polling Error", e); }
+  }
+
+  async function sendQuickReply(text, msgId = "CMD-01") {
+    try {
+      await fetch('http://127.0.0.1:8000/api/alerts/reply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message_id: msgId, reply_text: text })
+      });
+      setLogs(prev => [...prev, `[COMMAND]: ${text}`]);
+    } catch (e) { console.error("Reply Error", e); }
+  }
+
   const handleLogin = (role, data) => { 
     setUserData(data); 
     setView(role); 
@@ -143,6 +171,7 @@ export default function App() {
     setAdminSubView("dashboard");
   };
 
+  // Views Logic (Landing/Login/Portal) - Keeping as is
   if (view === "landing") {
     return (
       <div className="landing-page" style={s.landing}>
@@ -239,13 +268,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* 📊 LIVE & HISTORY TABLES SECTION */}
       <div style={{ marginTop: "10px" }}>
         <TacticalTables />
       </div>
 
       <div style={{marginTop: '10px'}}>
-        <AITerminal logs={logs} />
+        <AITerminal logs={logs} onReply={sendQuickReply} />
       </div>
     </div>
   );
