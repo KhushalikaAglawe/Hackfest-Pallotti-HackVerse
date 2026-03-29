@@ -13,7 +13,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from app.routers import alerts
+from fastapi import FastAPI
+from app.routers import alerts # <-- Ensure ye sahi import hai
 
+app = FastAPI()
+app.include_router(alerts.router)
 # ─────────────────────────────────────────
 # 📦 CORE & ROUTER IMPORTS
 # ─────────────────────────────────────────
@@ -37,7 +42,7 @@ app = FastAPI(
     description="AI-powered SAR Operations for IAF & Indian Army",
     version="1.0.0"
 )
-
+app.include_router(alerts.router)
 # 🌐 CORS CONFIG
 app.add_middleware(
     CORSMiddleware,

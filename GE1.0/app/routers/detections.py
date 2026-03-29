@@ -7,16 +7,18 @@ GET  /api/detections/map              — GPS points for map display
 GET  /api/detections/landing-zones    — Latest safe landing zones
 PATCH /api/detections/persons/{pid}  — Update status (RESCUED etc.)
 """
-
+from fastapi import APIRouter  
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 
 from app.core.state import store
 from app.core.logger import get_logger
+import cv2
+import numpy as np
 
 router = APIRouter()
 logger = get_logger(__name__)
-
+router = APIRouter(tags=["Detections"])
 
 @router.get("/persons")
 def get_all_persons(status: Optional[str] = None, limit: int = 100):

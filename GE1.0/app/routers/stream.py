@@ -27,7 +27,12 @@ from app.modules.pipeline import process_frame
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.modules.vip_tracker import vip_tracker
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from datetime import datetime
+import uuid
 
+router = APIRouter(prefix="/api/alerts", tags=["System Alerts"])
 router = APIRouter()
 logger = get_logger(__name__)
 
@@ -41,6 +46,53 @@ _last_depth = None
 _cap = None
 _is_ai_running = False
 _ai_thread = None
+
+all_messages = {} # { msg_id: {data} }
+active_popups = [] # Queue for frontend toast notifications
+
+# ── DATA MODELS ──────────────────────────────────────────────
+class UserMessage(BaseModel):
+    username: str
+    message: str
+    location: str = "Unknown"
+
+class AdminReply(BaseModel):
+    message_id: str
+    reply_text: str
+
+# ── 1. RECEIVE DM (From User to System) ──────────────────────
+@router.post("/send-dm")
+async def receive_user_message(data: UserMessage):
+    msg_id = str(uuid.uuid4())
+    new_msg = {
+        "id": msg_id,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "user": data.username,
+        "content": data.message,
+        "loc": data.location,
+        "reply": None, # Starting mein reply khali rahega
+        "read": False
+    }
+    all_messages[msg_id] = new_msg
+    active_popups.append(new_msg)
+    return {"status": "received", "id": msg_id}
+
+# ── 2. SEND REPLY (From System to User) ──────────────────────
+@router.post("/reply")
+async def send_reply(data: AdminReply):
+    if data.message_id not in all_messages:
+        raise HTTPException(status_code=404, detail="Original message not found")
+    
+    # Update the message with your reply
+    all_messages[data.message_id]["reply"] = data.reply_text
+    return {"status": "reply_sent", "content": data.reply_text}
+
+# ── 3. POPUP FETCH (Dashboard updates) ───────────────────────
+@router.get("/popups")
+async def get_popups():
+    unread = [m for m in active_popups if not m["read"]]
+    for m in active_popups: m["read"] = True
+    return {"alerts": unread}
 
 # ─────────────────────────────────────────
 # WEBSOCKET MANAGER
@@ -352,151 +404,136 @@ async def kmeans_lock():
 
     return {"status": f"K-Means Target Extracted!\nTop Math: {top_math}\nBottom Math: {bottom_math}"}
 
-# ─────────────────────────────────────────
-# 🚨 CITIZEN SOS & SAAS DASHBOARD LOGIC
-# ─────────────────────────────────────────
-
-@router.post("/citizen/report")
-async def citizen_report(
-    description: str = Form(...),
-    lat: float = Form(...),
-    lon: float = Form(...),
-    reporter: str = Form("Anonymous"),
-    image: Optional[UploadFile] = File(None)
-):
-    """
-    Feature 1: The 'Message' System.
-    Income Source: SaaS Premium Tier - Direct Citizen-to-Police link.
-    """
-    report_id = f"SOS-{int(time.time())}"
-    
-    # Image save logic (Optional: can be sent to Cloud Storage for SaaS)
-    image_path = None
-    if image:
-        image_path = f"uploads/reports/{report_id}_{image.filename}"
-        os.makedirs("uploads/reports", exist_ok=True)
-        with open(image_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-
-    report_data = {
-        "report_id": report_id,
-        "type": "CITIZEN_SOS",
-        "priority": "CRITICAL", # High priority for SaaS dashboard
-        "description": description,
-        "location": {"lat": lat, "lon": lon},
-        "reporter": reporter,
-        "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
-        "image_url": image_path
-    }
-
-    # Push to Global State for Dashboard visibility
-    store.add_citizen_report(report_data)
-    
-    # Broadcast to all connected WebSockets for INSTANT visual alert
-    ws_payload = json.dumps({"type": "NEW_SOS_ALERT", "data": report_data})
-    asyncio.run_coroutine_threadsafe(manager.broadcast(ws_payload), asyncio.get_event_loop())
-
-    logger.warning(f"🚨 SOS RECEIVED: {description} at {lat}, {lon}")
-    return {"status": "success", "incident_id": report_id}
-
-@router.get("/dashboard/alerts")
-async def fetch_dashboard_alerts():
-    """
-    SaaS Feature: This endpoint provides data to the police dashboard.
-    Shows the latest 3 critical citizen reports.
-    """
-    # Fetch from the store we updated in state.py
-    critical_reports = store.get_latest_reports(limit=3)
-    
-    return {
-        "status": "active",
-        "alerts": critical_reports,
-        "drone_status": "standby_for_dispatch",
-        "system_health": "OPTIMAL"
-    }
+import time
+import datetime
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
+from app.core.state import store
 
 @router.get("/download_report")
 async def download_report():
-    # 1. Fetch JSON data from Global Store
-    all_reports = store.citizen_reports # List of Dicts
-    all_persons = list(store.persons.values())
-    
-    # 2. Convert Citizen JSON Data to Table Rows
-    citizen_rows = ""
-    for r in all_reports:
-        # Priority-based styling
-        row_class = "critical-row" if r.get("priority") == "CRITICAL" else ""
-        citizen_rows += f"""
-        <tr class="{row_class}">
-            <td>{r.get('report_id')}</td>
-            <td>{r.get('timestamp')}</td>
-            <td>{r.get('reporter')}</td>
-            <td>{r.get('description')}</td>
-            <td>{r.get('location', {}).get('lat')}, {r.get('location', {}).get('lon')}</td>
-            <td><span class="badge badge-danger">ACTIVE</span></td>
-        </tr>
-        """
+    global _last_env
 
-    # 3. Convert Person Detection JSON to Table Rows
-    detection_rows = ""
-    for p in all_persons:
-        detection_rows += f"""
-        <tr>
-            <td>{p.person_id}</td>
-            <td>{p.status}</td>
-            <td>{p.gps_lat}, {p.gps_lon}</td>
-            <td>{getattr(p, 'triage_score', 'N/A')}</td>
-        </tr>
-        """
+    # ── 1. FETCH DB DATA ─────────────────────────────
+    try:
+        conn = sqlite3.connect('mission_data.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT username, location, message, admin_reply, timestamp 
+            FROM messages
+            ORDER BY timestamp DESC
+        """)
+        messages_data = cursor.fetchall()
+        conn.close()
+    except Exception:
+        messages_data = []
 
+    # ── 2. BUILD CHAT TABLE ROWS ─────────────────────
+    chat_rows = "".join([
+        f"<tr><td>{m[4]}</td><td>{m[0]} ({m[1]})</td><td>{m[2]}</td><td>{m[3] if m[3] else 'PENDING'}</td></tr>"
+        for m in messages_data
+    ])
+
+    # ── 3. EXISTING DATA ─────────────────────────────
+    victims_rows = "".join([
+        f"<tr><td>{p.person_id}</td><td>{p.status}</td><td>{p.gps_lat}, {p.gps_lon}</td><td>{p.confidence:.2f}</td></tr>" 
+        for p in store.persons.values()
+    ])
+
+    timeline_rows = "".join([
+        f"<tr><td>{log.get('time', 'N/A')}</td><td>{log.get('event', 'N/A')}</td></tr>" 
+        for log in store.mission_timeline
+    ])
+
+    env_status = _last_env.get('safety_level', 'STABLE') if isinstance(_last_env, dict) else 'UNKNOWN'
+    mission_id = f"GE-{int(time.time())}"
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ── 4. FINAL HTML (WITH PAGE BREAK) ──────────────
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Guardian Eye | Operational Audit</title>
         <style>
-            body {{ font-family: sans-serif; padding: 30px; background: #f8f9fa; }}
-            .container {{ max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-            h1 {{ color: #1a2a6c; border-bottom: 2px solid #1a2a6c; padding-bottom: 10px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th {{ background: #1a2a6c; color: white; padding: 12px; text-align: left; }}
-            td {{ padding: 10px; border-bottom: 1px solid #ddd; font-size: 14px; }}
-            .critical-row {{ background: #fff5f5; color: #d9534f; font-weight: bold; }}
-            .badge {{ padding: 5px 10px; border-radius: 4px; color: white; font-size: 12px; }}
-            .badge-danger {{ background: #d9534f; }}
-            .section-header {{ margin-top: 40px; background: #eee; padding: 10px; font-weight: bold; }}
+            body {{ font-family: sans-serif; padding: 20px; color: #333; }}
+            h2 {{ border-bottom: 2px solid #333; padding-bottom: 10px; }}
+            .meta {{ margin-bottom: 20px; font-size: 14px; line-height: 1.6; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 30px; }}
+            th, td {{ border: 1px solid #999; padding: 8px; text-align: left; font-size: 13px; }}
+            th {{ background-color: #f2f2f2; font-weight: bold; text-transform: uppercase; }}
+            .footer {{ margin-top: 40px; font-size: 12px; color: #666; text-align: center; }}
+            
+            /* PAGE BREAK */
+            .page-break {{ page-break-before: always; }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>Guardian Eye: Incident Audit Report</h1>
-            <p><strong>Generated on:</strong> {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-            
-            <div class="section-header">1. CITIZEN SOS MESSAGES (SaaS FEED)</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th><th>Time</th><th>Reporter</th><th>Incident Details</th><th>Coordinates</th><th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {citizen_rows if citizen_rows else "<tr><td colspan='6' style='text-align:center;'>No SOS messages yet.</td></tr>"}
-                </tbody>
-            </table>
 
-            <div class="section-header">2. AI DETECTION LOGS (DRONE FEED)</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Person ID</th><th>Last Known Status</th><th>GPS Coords</th><th>Triage Score</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {detection_rows if detection_rows else "<tr><td colspan='4' style='text-align:center;'>No detections recorded.</td></tr>"}
-                </tbody>
-            </table>
+        <!-- ───── PAGE 1 ───── -->
+        <h2>GUARDIAN EYE: MISSION TACTICAL REPORT</h2>
+        
+        <div class="meta">
+            <strong>MISSION ID:</strong> {mission_id}<br>
+            <strong>DATE:</strong> {timestamp} HRS<br>
+            <strong>LOCATION:</strong> NAGPUR SECTOR<br>
+            <strong>ENVIRONMENT STATUS:</strong> {env_status}
         </div>
+
+        <strong>[SECTION 01] TARGET DATA</strong>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>STATUS</th>
+                    <th>COORDINATES</th>
+                    <th>CONFIDENCE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {victims_rows if victims_rows else "<tr><td colspan='4'>No data recorded</td></tr>"}
+            </tbody>
+        </table>
+
+        <strong>[SECTION 02] EVENT LOGS</strong>
+        <table>
+            <thead>
+                <tr>
+                    <th>TIME</th>
+                    <th>EVENT DESCRIPTION</th>
+                </tr>
+            </thead>
+            <tbody>
+                {timeline_rows if timeline_rows else "<tr><td colspan='2'>No logs available</td></tr>"}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            GENERATED BY GUARDIAN EYE EDGE SYSTEM | OFFICIAL USE ONLY
+        </div>
+
+        <!-- ───── PAGE BREAK ───── -->
+        <div class="page-break"></div>
+
+        <!-- ───── PAGE 2 ───── -->
+        <h2>FIELD COMMUNICATION LOGS</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 20%;">TIME</th>
+                    <th>USER (LOCATION)</th>
+                    <th>MESSAGE RECEIVED</th>
+                    <th>ACTION TAKEN (REPLY)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {chat_rows if chat_rows else "<tr><td colspan='4'>No field messages recorded</td></tr>"}
+            </tbody>
+        </table>
+
     </body>
     </html>
     """
+
     return HTMLResponse(content=html_content)
+

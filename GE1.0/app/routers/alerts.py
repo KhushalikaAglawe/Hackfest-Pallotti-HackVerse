@@ -3,36 +3,106 @@ Guardian Eye — Alerts & VIP Target Router
 Receives dynamic HSV mathematical bounds from the Frontend LLM Agent.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
+import uuid
+
 from app.modules.vip_tracker import vip_tracker
 from app.core.state import store
+from app.core.logger import get_logger
 
-router = APIRouter(prefix="/api/alerts", tags=["Emergency Alerts"])
-router = APIRouter()
+# ✅ SINGLE router (FIXED — no overwriting)
+router = APIRouter(prefix="/api/alerts", tags=["System Alerts"])
+logger = get_logger(__name__)
 
-# ─── Pydantic Models for incoming JSON validation ───
+# ── DATA MODELS ──────────────────────────────────────────────
+class UserMessage(BaseModel):
+    user_id: str
+    username: str
+    message: str
+    location: str = "Unknown"
+
+# ── IN-MEMORY QUEUE FOR POP-UPS ──────────────────────────────
+active_alerts = []
+
+# ── 1. SEND DM (USER ENDPOINT) ───────────────────────────────
+@router.post("/send-dm")
+async def receive_user_message(data: UserMessage):
+    """
+    Jab koi user mobile app ya portal se message bhejega.
+    """
+    new_alert = {
+        "id": str(uuid.uuid4()),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "user": data.username,
+        "content": data.message,
+        "loc": data.location,
+        "type": "USER_DM",
+        "read": False
+    }
+
+    active_alerts.append(new_alert)
+
+    # Add to mission timeline
+    store.mission_timeline.append({
+        "time": new_alert["time"],
+        "event": f"DM from {data.username}: {data.message[:20]}..."
+    })
+
+    logger.info(f"New DM Received from {data.username}")
+    return {"status": "sent", "alert_id": new_alert["id"]}
+
+
+# ── OPTIONAL DB HOOK ─────────────────────────────────────────
+def save_to_mission_db(user, msg, loc, reply=None):
+    # Placeholder for DB integration
+    pass
+
+
+# ── 2. SYSTEM POP-UP FETCH ───────────────────────────────────
+@router.get("/popups")
+async def get_pending_popups():
+    """
+    Frontend dashboard polling endpoint.
+    """
+    unread = [a for a in active_alerts if not a["read"]]
+
+    # Mark all as read
+    for a in active_alerts:
+        a["read"] = True
+
+    return {"count": len(unread), "alerts": unread}
+
+
+# ── 3. CLEAR ALL ALERTS ──────────────────────────────────────
+@router.delete("/clear")
+async def clear_alerts():
+    active_alerts.clear()
+    return {"message": "All alerts cleared"}
+
+
+# ── HSV MODELS ───────────────────────────────────────────────
 class HSVBounds(BaseModel):
     lower: List[int]  # e.g., [0, 120, 70]
     upper: List[int]  # e.g., [10, 255, 255]
 
+
 class VIPTargetPayload(BaseModel):
     top_hsv: Optional[HSVBounds] = None
     bottom_hsv: Optional[HSVBounds] = None
-    reset_target: bool = False  # Set to True to cancel the search
-from fastapi import APIRouter
+    reset_target: bool = False
 
 
+# ── 4. CRITICAL ALERTS ───────────────────────────────────────
 @router.get("/critical")
 async def get_critical_alerts():
     """
-    Dashboard calls this every 2 seconds to show RED FLASHING ALERTS.
-    Income Source: Part of the 'Safety-as-a-Service' Premium Package.
+    Dashboard RED alerts (high priority).
     """
     reports = store.get_latest_reports(limit=5)
-    
-    # Logic: Agar koi report 5 minute se purani nahi hai, toh priority 'IMMEDIATE'
+
     formatted_alerts = []
     for r in reports:
         formatted_alerts.append({
@@ -43,23 +113,26 @@ async def get_critical_alerts():
             "color": "RED",
             "action": "DISPATCH_DRONE"
         })
-        
+
     return {"alerts": formatted_alerts}
 
+
+# ── 5. VIP TARGET CONTROL ────────────────────────────────────
 @router.post("/vip_target")
 async def set_vip_target(payload: VIPTargetPayload):
     """
-    Frontend hits this endpoint with the parsed LLM HSV bounds.
+    Inject HSV tracking bounds into live pipeline.
     """
+
     if payload.reset_target:
         vip_tracker.set_dynamic_target(None, None)
         return {"status": "VIP search aborted. Returning to standard triage."}
 
-    # Convert Pydantic models to standard Python dicts for the tracker
+    # Convert to dict
     top = payload.top_hsv.dict() if payload.top_hsv else None
     bottom = payload.bottom_hsv.dict() if payload.bottom_hsv else None
 
-    # Inject the new math into the live video pipeline instantly
+    # Apply to tracker
     vip_tracker.set_dynamic_target(top_hsv=top, bottom_hsv=bottom)
 
     return {
