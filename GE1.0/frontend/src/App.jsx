@@ -210,7 +210,7 @@ export default function App() {
   }
 
   if (view === "user") {
-    return <UserPortal userData={userData} onLogout={handleLogout} />;
+    return <UserPortal userData={userData} onReportSubmit={handleCivilianReport} onLogout={handleLogout} />;
   }
 
   if (view === "admin-lobby") {
