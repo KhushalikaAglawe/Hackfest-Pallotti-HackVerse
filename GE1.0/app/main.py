@@ -77,19 +77,6 @@ os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
 # 📂 MOUNT STATIC FILES
 app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs")
 
-<<<<<<< HEAD
-=======
-# 📡 ROUTER REGISTRATION
-# Note: Humne prefixes ko clean rakha hai taaki frontend easily call kar sake
-app.include_router(health.router, prefix="/api/health", tags=["System"])
-app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
-app.include_router(stream.router, prefix="/api/stream", tags=["Live Stream"])
-app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(history.router, prefix="/api/history", tags=["History"])
-
-
->>>>>>> 94b8e381abcf58f7b1f591d606958f891df538f0
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT
 # ─────────────────────────────────────────
