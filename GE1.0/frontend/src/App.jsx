@@ -19,6 +19,73 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// --- 🚀 TACTICAL DATA TABLES (Separated Live & History) ---
+const TacticalTables = () => {
+  const [persons, setPersons] = useState([]);
+  const [apiLogs, setApiLogs] = useState([]);
+
+  useEffect(() => {
+    // 1. Fetch Historical Logs from your API
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/history/logs");
+        const data = await response.json();
+        setApiLogs(Array.isArray(data) ? data : []); 
+      } catch (e) { console.error("API Fetch Error", e); }
+    };
+    fetchHistory();
+
+    // 2. Live WebSocket Connection
+    const ws = new WebSocket("ws://localhost:8000/ws");
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.persons) setPersons(data.persons);
+      } catch (e) { console.error("WS Parse Error", e); }
+    };
+    return () => ws.close();
+  }, []);
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px' }}>
+      {/* 🎯 LEFT: LIVE TARGET ACQUISITION (stream.py) */}
+      <div className="panel" style={{ borderColor: '#333', height: '220px', overflowY: 'auto' }}>
+        <div className="panel-title" style={{ color: '#ffaa00', fontSize: '10px' }}>🎯 LIVE TARGET ACQUISITION</div>
+        <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse', marginTop: '5px' }}>
+          <thead>
+            <tr style={{ color: '#666', textAlign: 'left', borderBottom: '1px solid #222' }}>
+              <th>ID</th><th>STATUS</th><th>TRIAGE</th><th>GPS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {persons.length > 0 ? persons.map((p, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #111', background: p.triage_score > 100 ? 'rgba(255,0,0,0.1)' : 'none' }}>
+                <td style={{ padding: '5px' }}>{p.person_id}</td>
+                <td style={{ color: p.status.includes('INJURED') ? '#ff3333' : '#00ff9c' }}>{p.status}</td>
+                <td>{p.triage_score}</td>
+                <td style={{ color: '#888' }}>{p.gps_lat?.toFixed(3)}, {p.gps_lon?.toFixed(3)}</td>
+              </tr>
+            )) : <tr><td colSpan="4" style={{textAlign:'center', padding:'20px', color:'#333'}}>NO LIVE TARGETS DETECTED</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 📂 RIGHT: SYSTEM HISTORY (API Logs) */}
+      <div className="panel" style={{ borderColor: '#00ccff', height: '220px', overflowY: 'auto' }}>
+        <div className="panel-title" style={{ color: '#00ccff', fontSize: '10px' }}>📂 SYSTEM HISTORY (DB)</div>
+        <div style={{ padding: '5px' }}>
+            {apiLogs.length > 0 ? apiLogs.slice().reverse().map((log, i) => (
+                <div key={i} style={{ fontSize: '9px', borderBottom: '1px solid #111', padding: '6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#00ff9c', minWidth: '60px' }}>[{log.timestamp?.split(' ')[1] || 'LOG'}]</span>
+                    <span style={{ color: '#eee', textAlign: 'right', flex: 1, marginLeft: '10px' }}>{log.message || log.event || "Data Synced"}</span>
+                </div>
+            )) : <div style={{fontSize:'9px', color:'#444', textAlign:'center', marginTop:'40px'}}>NO HISTORY LOGS FOUND</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- 3D TACTICAL DEPTH PANEL ---
 const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
@@ -144,8 +211,6 @@ export default function App() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
         <DepthPanel alertStatus={alert} />
-        
-        {/* SOS REPORTS PANEL with Instant Dispatch Button */}
         <div className="panel" style={{borderColor: '#ffaa00', maxHeight: '220px', overflowY: 'auto'}}>
             <div className="panel-title" style={{color: '#ffaa00'}}>🚨 INCOMING SOS</div>
             {civilianReports.length === 0 ? <div style={{fontSize:'10px', color:'#444', textAlign:'center', marginTop:'30px'}}>NO ACTIVE SOS</div> : 
@@ -172,6 +237,11 @@ export default function App() {
                 </div>
               ))}
         </div>
+      </div>
+
+      {/* 📊 LIVE & HISTORY TABLES SECTION */}
+      <div style={{ marginTop: "10px" }}>
+        <TacticalTables />
       </div>
 
       <div style={{marginTop: '10px'}}>

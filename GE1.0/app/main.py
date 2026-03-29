@@ -65,17 +65,24 @@ app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs"
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT
 # ─────────────────────────────────────────
+# ─────────────────────────────────────────
+# 🖥️ ROOT / DASHBOARD ENDPOINT (REPLACED)
+# ─────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def serve_command_deck():
-    # test_deck.html should be in the root folder (GE1.0/)
-    html_path = os.path.join(BASE_DIR, "..", "test_deck.html")
-    try:
-        if os.path.exists(html_path):
-            with open(html_path, "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read())
-        return HTMLResponse("<h1>Guardian Eye Online</h1><p>Visit <a href='/docs'>/docs</a> for API</p>")
-    except Exception:
-        return HTMLResponse("<h1>System Online</h1>", status_code=200)
+    # We remove the "test_deck.html" loading logic here 
+    # so it doesn't open the old frontend.
+    return HTMLResponse("""
+        <body style='background:#000; color:#00ff9c; font-family:monospace; text-align:center; padding-top:100px; border: 2px solid #00ff9c; margin: 30px; height: 80vh;'>
+            <h1 style='text-shadow: 0 0 10px #00ff9c;'>🛡️ GUARDIAN EYE API — ONLINE</h1>
+            <p style='color: #888;'>The Backend is running correctly on Port 8000.</p>
+            <div style='margin-top: 50px; padding: 20px; border: 1px solid #333; display: inline-block;'>
+                <p>To view the Tactical Dashboard, go to your React URL:</p>
+                <a href='http://localhost:5173' style='color:#000; background:#00ff9c; padding:10px 20px; text-decoration:none; font-weight:bold;'>OPEN FRONTEND (5173)</a>
+            </div>
+            <p style='margin-top: 20px;'>API Documentation: <a href='/docs' style='color:#00ccff;'>/docs</a></p>
+        </body>
+    """)
 
 # ─────────────────────────────────────────
 # 💾 DATABASE UTILITY
