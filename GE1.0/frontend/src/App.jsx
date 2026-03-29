@@ -21,8 +21,8 @@ let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSiz
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // --- 🚀 TACTICAL DATA TABLES ---
-const TacticalTables = () => {
-  const [persons, setPersons] = useState([]);
+// Strike 1: persons is now a prop — WebSocket lives in App()
+const TacticalTables = ({ persons }) => {
   const [apiLogs, setApiLogs] = useState([]);
 
   useEffect(() => {
@@ -34,15 +34,6 @@ const TacticalTables = () => {
       } catch (e) { console.error("API Fetch Error", e); }
     };
     fetchHistory();
-
-    const ws = new WebSocket("ws://localhost:8000/ws");
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.persons) setPersons(data.persons);
-      } catch (e) { console.error("WS Parse Error", e); }
-    };
-    return () => ws.close();
   }, []);
 
   return (
@@ -83,21 +74,67 @@ const TacticalTables = () => {
   );
 };
 
-const DepthPanel = ({ alertStatus }) => {
-  const isEmergency = alertStatus === "EMERGENCY";
-  const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
+// --- 🏔️ 3D TACTICAL DEPTH MAP (WITH LIVE LZ PLOTTING) ---
+const DepthPanel = ({ telemetry, personsCount }) => {
+  const isHazardous = telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION") || telemetry.hazard.includes("Warning");
+  
+  // Dynamic 3D properties based on live backend data
+  const themeColor = isHazardous ? "#ff3333" : "#00ff9c";
+  const meshDistortion = isHazardous ? 0.8 : 0.2; 
+  const meshSpeed = isHazardous ? 5 : 1; 
+
+  const [lzs, setLzs] = useState([]);
+
+  // 🧠 BEHIND-THE-SCENES DATA FETCH
+  useEffect(() => {
+    const fetchLZs = async () => {
+      try {
+        // 🚀 REMOVED ?safe_only=true so we can see the hazardous zones too!
+        const res = await fetch("http://127.0.0.1:8000/api/detections/landing-zones");
+        const data = await res.json();
+        if (data.landing_zones) setLzs(data.landing_zones);
+      } catch (e) { /* Silent fail */ }
+    };
+    fetchLZs();
+    const interval = setInterval(fetchLZs, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="panel" style={{ height: "220px", position: "relative", background: "#000", overflow: "hidden" }}>
-      <div className="panel-title" style={{ color: themeColor, fontSize: '10px' }}>📡 MiDaS V3.1 | TACTICAL 3D DEPTH MAP</div>
+    <div className="panel" style={{ height: "220px", position: "relative", background: "#000", overflow: "hidden", borderColor: themeColor }}>
+      <div className="panel-title" style={{ color: themeColor, fontSize: '10px', display: 'flex', justifyContent: 'space-between', zIndex: 10, position: 'absolute', width: '95%', top: '10px', left: '10px' }}>
+        <span>📡 MiDaS V3.1 | TACTICAL 3D TERRAIN ANALYSIS</span>
+        <span>LZ STATUS: {isHazardous ? "UNSAFE TERRAIN" : "CLEAR FOR LANDING"}</span>
+      </div>
+
+      {/* PAWANI'S PROFESSIONAL 3D CANVAS */}
       <Canvas camera={{ position: [0, 12, 12], fov: 45 }}>
         <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade />
         <ambientLight intensity={0.8} />
         <pointLight position={[10, 10, 10]} color={themeColor} intensity={2} />
+        
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
-          <planeGeometry args={[22, 16, 100, 100]} />
-          <MeshDistortMaterial color={themeColor} speed={isEmergency ? 4 : 1} distort={0.5} wireframe opacity={0.3} transparent />
+          <planeGeometry args={[22, 16, 80, 80]} />
+          <MeshDistortMaterial color={themeColor} speed={meshSpeed} distort={meshDistortion} wireframe opacity={0.3} transparent />
         </mesh>
-        <OrbitControls enableZoom={false} autoRotate />
+
+        {/* 🚁 PLOT ALL LZs: GREEN = SAFE, RED = UNSAFE */}
+        {lzs.map((lz, i) => {
+          const mapX = (lz.center_x / 640) * 22 - 11;
+          const mapZ = (lz.center_y / 480) * 16 - 8;
+          
+          // Dynamic Color Logic!
+          const padColor = lz.safe ? "#00ff9c" : "#ff3333"; 
+          
+          return (
+            <mesh key={i} position={[mapX, -0.5, mapZ]}> {/* 🚀 Raised to -0.5 so it floats above the mountains! */}
+              <cylinderGeometry args={[0.8, 0.8, 0.3, 16]} /> {/* Made them a tiny bit thicker too */}
+              <meshStandardMaterial color={padColor} emissive={padColor} emissiveIntensity={1.5} />
+            </mesh>
+          );
+        })}
+
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={personsCount > 0 ? 2 : 0.5} />
       </Canvas>
     </div>
   );
@@ -113,6 +150,16 @@ export default function App() {
   const [backendQueue, setBackendQueue] = useState([]);
   const [backendTeams, setBackendTeams] = useState({});
   const [activeMissionId, setActiveMissionId] = useState(null);
+
+  // --- STRIKE 1: MASTER TELEMETRY STATE ---
+  const [livePersons, setLivePersons] = useState([]);
+  const [telemetry, setTelemetry] = useState({
+    vip: "Awaiting VIP Lock...",
+    hazard: "Awaiting Moondream Scan...",
+    triage: "Awaiting Triage Request..."
+  });
+
+
 
   // --- REAL-TIME QUEUE POLLING (Lobby) ---
   useEffect(() => {
@@ -132,12 +179,22 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view]);
 
-  // --- DB TEAMMATE'S POLLING LOGIC ---
+  // --- MASTER TACTICAL WEBSOCKET ---
   useEffect(() => {
+    let ws;
     if (view === "admin-tactical") {
-      const interval = setInterval(() => { fetchNewMessages(); }, 3000);
-      return () => clearInterval(interval);
+      ws = new WebSocket("ws://127.0.0.1:8000/api/stream/ws");
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.persons) setLivePersons(data.persons);
+          
+          // Optional: If your backend sends live env data, you can grab it here too
+          // if (data.environment) { ... }
+        } catch (e) { console.error("WS Parse Error", e); }
+      };
     }
+    return () => { if (ws) ws.close(); };
   }, [view]);
 
   async function fetchNewMessages() {
@@ -303,17 +360,36 @@ export default function App() {
         </div>
 
         <div className="main-grid">
-          <div className="left-panel"><VLMControls /></div>
-          <div className="center-panel"><VideoPlayer /></div> 
-          <div className="right-panel"><RadarPanel persons={[]} /></div>
+          {/* Pass setTelemetry down to VLMControls so buttons can update the boxes */}
+          <div className="left-panel"><VLMControls setTelemetry={setTelemetry} /></div>
+          <div className="center-panel"><VideoPlayer /></div>
+          {/* Strike 2: Feed live WebSocket data to the Radar */}
+          <div className="right-panel"><RadarPanel persons={livePersons} /></div>
+        </div>
+
+        {/* 🚀 STRIKE 2: THE 3 TELEMETRY PANELS */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
+          <div className="panel" style={{ borderColor: '#cc00ff' }}>
+            <h3 style={{ color: '#cc00ff', fontSize: '12px', margin: 0 }}>VIP TRACKER INTEL</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.vip}</div>
+          </div>
+          <div className="panel" style={{ borderColor: '#00ccff' }}>
+            <h3 style={{ color: '#00ccff', fontSize: '12px', margin: 0 }}>HAZARD ANALYSIS</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.hazard}</div>
+          </div>
+          <div className="panel" style={{ borderColor: '#ffaa00' }}>
+            <h3 style={{ color: '#ffaa00', fontSize: '12px', margin: 0 }}>VICTIM TRIAGE</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.triage}</div>
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginTop: "10px" }}>
-          <DepthPanel alertStatus={alert} />
+          <DepthPanel telemetry={telemetry} personsCount={livePersons.length} />
         </div>
 
         <div style={{ marginTop: "10px" }}>
-          <TacticalTables />
+          {/* Strike 2: Feed live data to the tables */}
+          <TacticalTables persons={livePersons} />
         </div>
 
         <div style={{marginTop: '10px'}}>

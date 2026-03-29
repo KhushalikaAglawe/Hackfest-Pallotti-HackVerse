@@ -130,23 +130,41 @@ def get_map_points():
 @router.get("/landing-zones")
 def get_landing_zones(limit: int = 10, safe_only: bool = False):
     lzs = store.get_latest_lzs(limit=limit)
+    results = []
+    
+    # 1. If DB works, use it
+    for lz in lzs:
+        results.append({
+            "center_x": getattr(lz, 'center_x', 320),
+            "center_y": getattr(lz, 'center_y', 240),
+            "safe": getattr(lz, 'safe', True)
+        })
+        
+    # 2. 🚀 HACKATHON FALLBACK: If DB is empty, dynamically build the 3x3 Grid!
+    if not results:
+        persons = store.get_all_persons()
+        grid_w, grid_h = 640 / 3, 480 / 3
+        
+        for row in range(3):
+            for col in range(3):
+                cx = (col * grid_w) + (grid_w / 2)
+                cy = (row * grid_h) + (grid_h / 2)
+                
+                # Check if any person is standing inside this grid cell
+                is_safe = True
+                for p in persons:
+                    px = getattr(p, 'x', -1000)
+                    py = getattr(p, 'y', -1000)
+                    if abs(px - cx) < (grid_w / 1.5) and abs(py - cy) < (grid_h / 1.5):
+                        is_safe = False
+                
+                results.append({
+                    "center_x": cx, 
+                    "center_y": cy,
+                    "safe": is_safe
+                })
+
     if safe_only:
-        lzs = [lz for lz in lzs if lz.safe]
-    return {
-        "total": len(lzs),
-        "landing_zones": [
-            {
-                "lz_id": lz.lz_id,
-                "timestamp": lz.timestamp,
-                "center_x": lz.center_x,
-                "center_y": lz.center_y,
-                "area_px": lz.area_px,
-                "safety_score": lz.safety_score,
-                "safe": lz.safe,
-                "gps_lat": lz.gps_lat,
-                "gps_lon": lz.gps_lon,
-                "depth_variance": lz.depth_variance,
-            }
-            for lz in lzs
-        ],
-    }
+        results = [r for r in results if r["safe"]]
+        
+    return {"total": len(results), "landing_zones": results}

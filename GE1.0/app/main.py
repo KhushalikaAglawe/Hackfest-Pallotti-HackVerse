@@ -9,7 +9,7 @@ import numpy as np
 import sqlite3
 from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -121,3 +121,17 @@ async def startup_event():
 # 🚀 RUN SERVER
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
+# ==========================================
+# 🛑 HACKATHON QUICK-FIX ROUTES (Stops 404 Spam)
+# ==========================================
+
+@app.get("/api/alerts/popups")
+async def get_popups():
+    # Returns empty alerts so the frontend stops throwing errors
+    return {"alerts": []} 
+
+@app.get("/api/history/count")
+async def get_history_count():
+    return {"count": 0}
+

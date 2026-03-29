@@ -6,6 +6,7 @@ Now includes posture / injury detection and VIP color targeting.
 from typing import Optional, List  
 from fastapi import APIRouter, File, UploadFile, BackgroundTasks
 
+import torch
 import cv2
 import numpy as np
 from typing import List, Tuple, Dict
@@ -37,15 +38,18 @@ class PersonDetector:
     """
 
     def __init__(self):
+        # Safely check if GPU is awake, otherwise fall back to CPU
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self._model = None
         self._tracker_results = {}
 
     def _load_model(self):
         if self._model is None:
             from ultralytics import YOLO
-            logger.info(f"Loading YOLO Pose model on {settings.DEVICE}")
+            logger.info(f"Loading YOLO Pose model on {self.device}")
             self._model = YOLO(settings.YOLO_MODEL, task="pose")
-            logger.info("YOLO model loaded onto GPU.")
+            self._model.to(self.device)
+            logger.info(f"YOLO model loaded onto {self.device}.")
 
     def detect(self, frame: np.ndarray, use_tracking: bool = True) -> List[Detection]:
         self._load_model()
@@ -62,7 +66,7 @@ class PersonDetector:
                 classes=[settings.PERSON_CLASS_ID],
                 verbose=False,
                 tracker=settings.TRACKER,
-                device=settings.DEVICE,
+                device=self.device,
                 half=use_half,
             )
         else:
@@ -72,7 +76,7 @@ class PersonDetector:
                 iou=settings.YOLO_IOU,
                 classes=[settings.PERSON_CLASS_ID],
                 verbose=False,
-                device=settings.DEVICE,
+                device=self.device,
                 half=use_half,
             )
 

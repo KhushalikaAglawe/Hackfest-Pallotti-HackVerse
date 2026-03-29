@@ -178,32 +178,29 @@ def _ai_processing_loop(loop):
                 active_persons = []
                 vip_is_visible = False
                 
-                for p in store.persons.values():
-                    if (current_time - getattr(p, 'last_seen_epoch', 0)) < 2.0:
-                        p_data = p.__dict__.copy()
+                for p in list(store.persons.values()):
+                    p_data = p.__dict__.copy()
+                    
+                    # 🚀 SAFELY GET X/Y FOR RADAR (Bypassing the broken epoch filter)
+                    px = getattr(p, 'x', 320)
+                    py = getattr(p, 'y', 240)
+                    p_data["rel_x"] = (px - 320) / 320
+                    p_data["rel_y"] = (240 - py) / 240
+                    
+                    # 🚀 CALCULATE TRIAGE SCORE
+                    status = getattr(p, 'status', 'STANDING')
+                    triage_score = 10 
+                    if "INJURED" in status or "LYING" in status:
+                        triage_score += 50
+                    if "VIP" in status:
+                        triage_score += 100
+                        vip_is_visible = True
                         
-                        p_data["rel_x"] = (p.x - 320) / 320
-                        p_data["rel_y"] = (240 - p.y) / 240
-                        
-                        # Calculate Triage Score
-                        triage_score = 10 
-                        if "INJURED" in p.status or "LYING DOWN" in p.status:
-                            triage_score += 50
-                        if "VIP" in p.status:
-                            triage_score += 100
-                            vip_is_visible = True
-                            
-                        if _last_env.get('safety_level') in ["CAUTION", "EMERGENCY"]:
-                            triage_score += 20
-                            
-                        p_data["triage_score"] = triage_score
-                        p_data["priority_score"] = triage_score
-                        
-                        vid = getattr(p, 'id', getattr(p, 'person_id', '0'))
-                        p_data["id"] = vid
-                        p_data["gps_string"] = f"30.3165° N, 78.{str(vid).split('-')[-1].zfill(4)}° E"
-                        
-                        active_persons.append(p_data)
+                    p_data["triage_score"] = triage_score
+                    p_data["priority_score"] = triage_score
+                    p_data["id"] = getattr(p, 'person_id', getattr(p, 'id', 'P-UKN'))
+                    
+                    active_persons.append(p_data)
                 
                 # Sort so the highest score is at the top!
                 active_persons.sort(key=lambda x: x.get("triage_score", 0), reverse=True)

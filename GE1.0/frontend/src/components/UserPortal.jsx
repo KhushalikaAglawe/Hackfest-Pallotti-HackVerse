@@ -36,17 +36,30 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
     }
   };
 
-  // ✅ QUICK SOS: No text, No video, Just GPS
-  const handleQuickSOS = () => {
+  // ✅ QUICK SOS: Hits the Real Backend instantly with a default message
+  const handleQuickSOS = async () => {
     if (!hasLocation) {
         alert("Acquiring GPS first...");
         fetchLocation();
         return;
     }
-    triggerSOS("CRITICAL: UNKNOWN EMERGENCY");
-  };
 
-  // ✅ SUBMIT WITH DETAILS: Sends video + GPS to real backend
+    const formData = new FormData();
+    formData.append("video", new Blob(["no-video"], {type: "video/mp4"}), "panic.mp4");
+    formData.append("description", "CRITICAL: ONE-TAP PANIC BUTTON ACTIVATED");
+    formData.append("latitude", position[0]);
+    formData.append("longitude", position[1]);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/sos/upload", { method: "POST", body: formData });
+      const data = await response.json();
+      setMissionId(data.mission_id);
+      setStatus("waiting");
+      onReportSubmit({ user: userData, location: { lat: position[0], lng: position[1] }, description: "ONE-TAP PANIC", type: "PANIC_SIGNAL", timestamp: new Date().toLocaleTimeString() });
+    } catch (error) {
+      alert("Transmission Failed. Is the backend running?");
+    }
+  };
   const handleSubmitSOS = async () => {
     if (!hasLocation) { alert("Acquire GPS lock first!"); return; }
 
@@ -66,18 +79,6 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
       console.error("SOS Transmission Failed:", error);
       alert("Transmission Failed. Is the backend running?");
     }
-  };
-
-  const triggerSOS = (desc) => {
-    setStatus("reported");
-    onReportSubmit({
-      user: userData,
-      location: { lat: position[0], lng: position[1] },
-      description: desc || description,
-      type: "PANIC_SIGNAL",
-      timestamp: new Date().toLocaleTimeString()
-    });
-    setTimeout(() => setStatus("tracking"), 2000);
   };
 
   // ✅ POLLING: Wait for NDRF to assign a team to our mission

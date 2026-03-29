@@ -9,7 +9,7 @@ export default function VideoPlayer() {
   const handleConnect = (e) => {
     e.preventDefault();
     setVideoURL(null);
-    setStreamURL("http://localhost:8000/webcam"); 
+    setStreamURL("http://127.0.0.1:8000/api/stream/webcam"); 
   };
 
   const handleUpload = (e) => {
