@@ -9,16 +9,11 @@ import numpy as np
 import sqlite3
 from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from app.routers import alerts
-from fastapi import FastAPI
-from app.routers import alerts # <-- Ensure ye sahi import hai
 
-app = FastAPI()
-app.include_router(alerts.router)
 # ─────────────────────────────────────────
 # 📦 CORE & ROUTER IMPORTS
 # ─────────────────────────────────────────
@@ -30,26 +25,21 @@ from app.routers import (
     detections,
     alerts,
     health,
-    history
+    history,
+    sos
 )
 from app.modules.detection import detector
 
 logger = get_logger(__name__)
 
 # 🚀 APP INIT
-<<<<<<< HEAD
-app = FastAPI(title="Guardian Eye API")
-
-# 🚀 STEP 1: OPEN THE GATES (Must be BEFORE include_router)
-=======
 app = FastAPI(
     title="Guardian Eye — SAR Backend",
     description="AI-powered SAR Operations for IAF & Indian Army",
     version="1.0.0"
 )
-app.include_router(alerts.router)
-# 🌐 CORS CONFIG
->>>>>>> 94b8e381abcf58f7b1f591d606958f891df538f0
+
+# 🚀 STEP 1: OPEN THE GATES (Must be BEFORE include_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -65,10 +55,10 @@ app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
 app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
+app.include_router(sos.router, prefix="/api/sos", tags=["SOS"])
 
 # 📂 DIRECTORY SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Dynamic DB Path: Works on any Mac/PC
 DB_PATH = os.path.join(BASE_DIR, "db", "missions.db")
 
 # Ensure output directory exists for annotated videos
@@ -80,13 +70,8 @@ app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs"
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT
 # ─────────────────────────────────────────
-# ─────────────────────────────────────────
-# 🖥️ ROOT / DASHBOARD ENDPOINT (REPLACED)
-# ─────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def serve_command_deck():
-    # We remove the "test_deck.html" loading logic here 
-    # so it doesn't open the old frontend.
     return HTMLResponse("""
         <body style='background:#000; color:#00ff9c; font-family:monospace; text-align:center; padding-top:100px; border: 2px solid #00ff9c; margin: 30px; height: 80vh;'>
             <h1 style='text-shadow: 0 0 10px #00ff9c;'>🛡️ GUARDIAN EYE API — ONLINE</h1>
@@ -136,3 +121,17 @@ async def startup_event():
 # 🚀 RUN SERVER
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
+# ==========================================
+# 🛑 HACKATHON QUICK-FIX ROUTES (Stops 404 Spam)
+# ==========================================
+
+@app.get("/api/alerts/popups")
+async def get_popups():
+    # Returns empty alerts so the frontend stops throwing errors
+    return {"alerts": []} 
+
+@app.get("/api/history/count")
+async def get_history_count():
+    return {"count": 0}
+

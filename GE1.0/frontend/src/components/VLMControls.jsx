@@ -1,57 +1,65 @@
 import React, { useState } from 'react';
 
-export default function VLMControls() {
-  const [hazardData, setHazardData] = useState(null);
-  const [triageData, setTriageData] = useState(null);
+// Notice we added setTelemetry here as a prop!
+export default function VLMControls({ setTelemetry }) {
+  const [topColor, setTopColor] = useState("");
+  const [bottomColor, setBottomColor] = useState("");
 
-  // Simulation: Real app mein ye backend API (/api/analyze) se aayega
-  const handleScan = () => {
-    setHazardData({ type: "FIRE / SMOKE", risk: "HIGH", location: "Sector 4" });
+  const handleScanHazards = async () => {
+    setTelemetry(prev => ({ ...prev, hazard: "Scanning area with Moondream..." }));
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/hazard", { method: "POST" });
+      const data = await res.json();
+      setTelemetry(prev => ({ ...prev, hazard: data.response || "Scan complete." }));
+    } catch (e) { setTelemetry(prev => ({ ...prev, hazard: "Scan failed." })); }
   };
 
-  const handleTriage = () => {
-    setTriageData({ status: "CRITICAL", pulse: "110 bpm", oxygen: "92%" });
+  const handleTriage = async () => {
+    setTelemetry(prev => ({ ...prev, triage: "Analyzing vitals via VLM..." }));
+    try {
+      const formData = new FormData(); 
+      formData.append("person_id", "P-0001"); // You can make this dynamic later
+      const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/triage", { method: "POST", body: formData });
+      const data = await res.json();
+      setTelemetry(prev => ({ ...prev, triage: data.response || "Triage complete." }));
+    } catch (e) { setTelemetry(prev => ({ ...prev, triage: "Triage failed." })); }
+  };
+
+  const handleHuntVIP = async () => {
+    setTelemetry(prev => ({ ...prev, vip: "Locking LLAMA text search..." }));
+    try {
+      const formData = new FormData();
+      formData.append("top_color", topColor);
+      formData.append("bottom_color", bottomColor);
+      const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/vip", { method: "POST", body: formData });
+      const data = await res.json();
+      setTelemetry(prev => ({ ...prev, vip: data.status || "VIP Search Active." }));
+    } catch (e) { setTelemetry(prev => ({ ...prev, vip: "VIP Search failed." })); }
+  };
+
+  const handleAutoExtract = async () => {
+    setTelemetry(prev => ({ ...prev, vip: "Engaging K-Means Auto-Extract..." }));
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/stream/vlm/kmeans_lock", { method: "POST" });
+      const data = await res.json();
+      setTelemetry(prev => ({ ...prev, vip: data.status || "K-Means Locked." }));
+    } catch (e) { setTelemetry(prev => ({ ...prev, vip: "K-Means failed." })); }
   };
 
   return (
-    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div className="panel-title">AI CONTROLS</div>
+    <div className="panel" style={{ height: '100%', borderColor: '#0f0' }}>
+      <div className="panel-title" style={{ color: '#0f0' }}>AI CONTROLS</div>
       
-      {/* BUTTONS SECTION */}
-      <button className="btn blue" onClick={handleScan}>SCAN HAZARDS</button>
-      <button className="btn orange" onClick={handleTriage}>TRIAGE VICTIM</button>
+      <button className="btn blue" style={{ width: '100%', marginBottom: '10px' }} onClick={handleScanHazards}>SCAN HAZARDS</button>
+      <button className="btn orange" style={{ width: '100%', marginBottom: '20px' }} onClick={handleTriage}>TRIAGE VICTIM</button>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '5px' }}>
-        <input type="text" placeholder="Shirt Color" className="terminal-input" />
-        <input type="text" placeholder="Pants Color" className="terminal-input" />
-      </div>
-
-      <button className="btn purple">HUNT VIP</button>
-      <button className="btn red">CLEAR TARGET</button>
-
-      {/* --- NEW DATA SECTIONS --- */}
-      <hr style={{ border: '0.5px solid #333', margin: '10px 0' }} />
-      
-      {/* Hazard Result Area */}
-      <div className="data-box" style={{ border: '1px solid #00ffff33', padding: '8px', fontSize: '11px' }}>
-        <div style={{ color: '#00ffff', marginBottom: '5px', fontSize: '10px' }}>⚠️ HAZARD TELEMETRY</div>
-        {hazardData ? (
-          <div>
-            <div>TYPE: <span style={{ color: 'red' }}>{hazardData.type}</span></div>
-            <div>RISK: {hazardData.risk}</div>
-          </div>
-        ) : <div style={{ opacity: 0.5 }}>NO HAZARDS DETECTED</div>}
-      </div>
-
-      {/* Triage Result Area */}
-      <div className="data-box" style={{ border: '1px solid #ffa50033', padding: '8px', fontSize: '11px', marginTop: '5px' }}>
-        <div style={{ color: '#ffa500', marginBottom: '5px', fontSize: '10px' }}>⚕️ TRIAGE DATA</div>
-        {triageData ? (
-          <div>
-            <div>STATUS: <span style={{ color: triageData.status === 'CRITICAL' ? 'red' : 'green' }}>{triageData.status}</span></div>
-            <div>VITALS: {triageData.pulse} | O2: {triageData.oxygen}</div>
-          </div>
-        ) : <div style={{ opacity: 0.5 }}>AWAITING VICTIM SCAN...</div>}
+      <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
+        <input type="text" placeholder="Shirt Color" style={{ width: '100%', marginBottom: '5px', background: '#111', color: 'white', border: '1px solid #333', padding: '5px' }} onChange={e => setTopColor(e.target.value)} />
+        <input type="text" placeholder="Pants Color" style={{ width: '100%', marginBottom: '10px', background: '#111', color: 'white', border: '1px solid #333', padding: '5px' }} onChange={e => setBottomColor(e.target.value)} />
+        
+        <button className="btn" style={{ width: '100%', background: '#cc00ff', color: 'white', marginBottom: '10px' }} onClick={handleHuntVIP}>HUNT VIP</button>
+        <button className="btn" style={{ width: '100%', background: '#ff00ff', color: 'white', marginBottom: '10px' }} onClick={handleAutoExtract}>🎯 AUTO-EXTRACT (K-MEANS)</button>
+        <button className="btn red" style={{ width: '100%' }}>CLEAR TARGET</button>
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
+import React from "react";
 import "./styles/global.css";
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, MeshDistortMaterial, Stars } from '@react-three/drei';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 
 // Components
@@ -20,8 +21,8 @@ let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSiz
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // --- 🚀 TACTICAL DATA TABLES ---
-const TacticalTables = () => {
-  const [persons, setPersons] = useState([]);
+// Strike 1: persons is now a prop — WebSocket lives in App()
+const TacticalTables = ({ persons }) => {
   const [apiLogs, setApiLogs] = useState([]);
 
   useEffect(() => {
@@ -33,15 +34,6 @@ const TacticalTables = () => {
       } catch (e) { console.error("API Fetch Error", e); }
     };
     fetchHistory();
-
-    const ws = new WebSocket("ws://localhost:8000/ws");
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.persons) setPersons(data.persons);
-      } catch (e) { console.error("WS Parse Error", e); }
-    };
-    return () => ws.close();
   }, []);
 
   return (
@@ -82,21 +74,67 @@ const TacticalTables = () => {
   );
 };
 
-const DepthPanel = ({ alertStatus }) => {
-  const isEmergency = alertStatus === "EMERGENCY";
-  const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
+// --- 🏔️ 3D TACTICAL DEPTH MAP (WITH LIVE LZ PLOTTING) ---
+const DepthPanel = ({ telemetry, personsCount }) => {
+  const isHazardous = telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION") || telemetry.hazard.includes("Warning");
+  
+  // Dynamic 3D properties based on live backend data
+  const themeColor = isHazardous ? "#ff3333" : "#00ff9c";
+  const meshDistortion = isHazardous ? 0.8 : 0.2; 
+  const meshSpeed = isHazardous ? 5 : 1; 
+
+  const [lzs, setLzs] = useState([]);
+
+  // 🧠 BEHIND-THE-SCENES DATA FETCH
+  useEffect(() => {
+    const fetchLZs = async () => {
+      try {
+        // 🚀 REMOVED ?safe_only=true so we can see the hazardous zones too!
+        const res = await fetch("http://127.0.0.1:8000/api/detections/landing-zones");
+        const data = await res.json();
+        if (data.landing_zones) setLzs(data.landing_zones);
+      } catch (e) { /* Silent fail */ }
+    };
+    fetchLZs();
+    const interval = setInterval(fetchLZs, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="panel" style={{ height: "220px", position: "relative", background: "#000", overflow: "hidden" }}>
-      <div className="panel-title" style={{ color: themeColor, fontSize: '10px' }}>📡 MiDaS V3.1 | TACTICAL 3D DEPTH MAP</div>
+    <div className="panel" style={{ height: "220px", position: "relative", background: "#000", overflow: "hidden", borderColor: themeColor }}>
+      <div className="panel-title" style={{ color: themeColor, fontSize: '10px', display: 'flex', justifyContent: 'space-between', zIndex: 10, position: 'absolute', width: '95%', top: '10px', left: '10px' }}>
+        <span>📡 MiDaS V3.1 | TACTICAL 3D TERRAIN ANALYSIS</span>
+        <span>LZ STATUS: {isHazardous ? "UNSAFE TERRAIN" : "CLEAR FOR LANDING"}</span>
+      </div>
+
+      {/* PAWANI'S PROFESSIONAL 3D CANVAS */}
       <Canvas camera={{ position: [0, 12, 12], fov: 45 }}>
         <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade />
         <ambientLight intensity={0.8} />
         <pointLight position={[10, 10, 10]} color={themeColor} intensity={2} />
+        
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
-          <planeGeometry args={[22, 16, 100, 100]} />
-          <MeshDistortMaterial color={themeColor} speed={isEmergency ? 4 : 1} distort={0.5} wireframe opacity={0.3} transparent />
+          <planeGeometry args={[22, 16, 80, 80]} />
+          <MeshDistortMaterial color={themeColor} speed={meshSpeed} distort={meshDistortion} wireframe opacity={0.3} transparent />
         </mesh>
-        <OrbitControls enableZoom={false} autoRotate />
+
+        {/* 🚁 PLOT ALL LZs: GREEN = SAFE, RED = UNSAFE */}
+        {lzs.map((lz, i) => {
+          const mapX = (lz.center_x / 640) * 22 - 11;
+          const mapZ = (lz.center_y / 480) * 16 - 8;
+          
+          // Dynamic Color Logic!
+          const padColor = lz.safe ? "#00ff9c" : "#ff3333"; 
+          
+          return (
+            <mesh key={i} position={[mapX, -0.5, mapZ]}> {/* 🚀 Raised to -0.5 so it floats above the mountains! */}
+              <cylinderGeometry args={[0.8, 0.8, 0.3, 16]} /> {/* Made them a tiny bit thicker too */}
+              <meshStandardMaterial color={padColor} emissive={padColor} emissiveIntensity={1.5} />
+            </mesh>
+          );
+        })}
+
+        <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={personsCount > 0 ? 2 : 0.5} />
       </Canvas>
     </div>
   );
@@ -104,22 +142,146 @@ const DepthPanel = ({ alertStatus }) => {
 
 export default function App() {
   const [view, setView] = useState("landing"); 
-  const [adminSubView, setAdminSubView] = useState("dashboard");
   const [userData, setUserData] = useState(null);
-  const [civilianReports, setCivilianReports] = useState([]);
-  const [dispatchQueue, setDispatchQueue] = useState([]);
-  const [selectedReport, setSelectedReport] = useState(null);
   const [alert, setAlert] = useState("NORMAL");
   const [logs, setLogs] = useState(["[SYSTEM] Tactical Deck Online", "[AUTH] Waiting..."]);
 
-  // --- 🔄 DB TEAMMATE'S POLLING LOGIC ---
+  // --- NEW BACKEND STATES (Lobby & Queue) ---
+  const [backendQueue, setBackendQueue] = useState([]);
+  const [backendTeams, setBackendTeams] = useState({});
+  const [activeMissionId, setActiveMissionId] = useState(null);
+
+  // --- STRIKE 1: MASTER TELEMETRY STATE ---
+  const [livePersons, setLivePersons] = useState([]);
+  const [envSafety, setEnvSafety] = useState("SAFE"); // 🚀 1. ADD THIS STATE
+  const [telemetry, setTelemetry] = useState({
+    vip: "Awaiting VIP Lock...",
+    hazard: "Awaiting Moondream Scan...",
+    triage: "Awaiting Triage Request..."
+  });
+
+  // ==========================================
+  // 🔊 BULLETPROOF AUDIO ENGINE V3 (VIP Only)
+  // ==========================================
+  const [audioMuted, setAudioMuted] = useState(false);
+  const sirenRef = useRef(null);
+  const warningRef = useRef(null);
+  const lockRef = useRef(null);
+  const lockTimerRef = useRef(null);
+
+  // 1. Initialize audio safely 
   useEffect(() => {
-    if (view === "admin") {
-      const interval = setInterval(() => {
-        fetchNewMessages();
-      }, 3000);
-      return () => clearInterval(interval);
+    if (!sirenRef.current) {
+      sirenRef.current = new Audio('/sounds/siren.mp3');
+      sirenRef.current.loop = true; 
+      
+      warningRef.current = new Audio('/sounds/warning.mp3');
+      
+      lockRef.current = new Audio('/sounds/targetlock.mp3');
+      lockRef.current.loop = true; // Loops for 7 secs, then we kill it
     }
+  }, []);
+
+  // 2. Hardware-Level Master Mute Switch
+  useEffect(() => {
+    if (sirenRef.current) sirenRef.current.muted = audioMuted;
+    if (warningRef.current) warningRef.current.muted = audioMuted;
+    if (lockRef.current) lockRef.current.muted = audioMuted;
+  }, [audioMuted]);
+
+  // 3. SIREN: Triggers on SOS OR when Environment is in DANGER
+  useEffect(() => {
+    if (!sirenRef.current) return;
+    if (alert === "EMERGENCY" || envSafety === "DANGER") {
+      sirenRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+    } else {
+      sirenRef.current.pause();
+      sirenRef.current.currentTime = 0;
+    }
+  }, [alert, envSafety]);
+
+  // 4. HAZARD WARNING: Triggers when Moondream spots a hazard
+  useEffect(() => {
+    if (!warningRef.current) return;
+    if (telemetry.hazard.includes("UNSAFE") || telemetry.hazard.includes("CAUTION")) {
+      warningRef.current.currentTime = 0;
+      warningRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+    }
+  }, [telemetry.hazard]);
+
+  // 5. 🎯 VIP TARGET LOCK: 7-Second Loop (ONLY FOR VIPs)
+  useEffect(() => {
+    if (!lockRef.current) return;
+
+    // Trigger only when your VIP button gets a successful lock from the backend
+    if ((telemetry.vip.includes("Acquired") || telemetry.vip.includes("Locked")) && !audioMuted) {
+      
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      
+      lockRef.current.currentTime = 0;
+      lockRef.current.play().catch(e => console.log("Browser blocked autoplay"));
+
+      // Cut the audio exactly 7 seconds later
+      lockTimerRef.current = setTimeout(() => {
+        if (lockRef.current) {
+          lockRef.current.pause();
+          lockRef.current.currentTime = 0;
+        }
+      }, 7000);
+      
+    } else if (telemetry.vip.includes("Awaiting") || telemetry.vip.includes("CLEAR")) {
+      // If you click "Clear Target", kill the alarm instantly
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      lockRef.current.pause();
+      lockRef.current.currentTime = 0;
+    }
+  }, [telemetry.vip, audioMuted]);
+
+
+
+  // --- REAL-TIME QUEUE POLLING (Lobby) ---
+  useEffect(() => {
+    let interval;
+    if (view === "admin-lobby") {
+      const fetchQueue = async () => {
+        try {
+          const res = await fetch("http://127.0.0.1:8000/api/sos/queue");
+          const data = await res.json();
+          setBackendQueue(data.queue || []);
+          setBackendTeams(data.teams || {});
+        } catch (e) { console.error("Backend offline or CORS issue"); }
+      };
+      fetchQueue(); 
+      interval = setInterval(fetchQueue, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [view]);
+
+  // --- MASTER TACTICAL WEBSOCKET ---
+  useEffect(() => {
+    let ws;
+    if (view === "admin-tactical") {
+      ws = new WebSocket("ws://127.0.0.1:8000/api/stream/ws");
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // 🚀 RADAR GHOST BUSTER: Only keep targets seen in the last 2 seconds
+          if (data.persons) {
+            const currentTime = Date.now() / 1000;
+            const liveOnly = data.persons.filter(p => 
+              (currentTime - (p.last_seen_epoch || 0)) < 2.0
+            );
+            setLivePersons(liveOnly);
+          }
+          
+          if (data.environment && data.environment.safety_level) {
+             setEnvSafety(data.environment.safety_level);
+          }
+        } catch (e) { console.error("WS Parse Error", e); }
+      };
+    }
+    return () => { if (ws) ws.close(); };
   }, [view]);
 
   async function fetchNewMessages() {
@@ -145,6 +307,12 @@ export default function App() {
     } catch (e) { console.error("Reply Error", e); }
   }
 
+  // --- MISSING FUNCTION RESTORED ---
+  const handleCivilianReport = (report) => {
+    setAlert("EMERGENCY");
+    setLogs(p => [...p, `[ALERT] NEW SOS RECEIVED FROM CIVILIAN PORTAL`]);
+  };
+
   const handleLogin = (role, data) => { 
     setUserData(data); 
     setView(role); 
@@ -153,25 +321,11 @@ export default function App() {
 
   const handleLogout = () => { 
     setView("landing"); 
-    setAdminSubView("dashboard");
     setUserData(null);
-    setLogs(p => [...p, "[SYSTEM] Security logout successful"]);
+    setLogs(["[SYSTEM] Security logout successful"]);
   };
 
-  const handleCivilianReport = (report) => {
-    setCivilianReports(p => [report, ...p]);
-    setAlert(report.type === "PANIC_SIGNAL" ? "EMERGENCY" : "NORMAL");
-    setLogs(p => [...p, `[ALERT] ${report.type || 'SOS'} from ${report.user.name}`]);
-  };
-
-  const handleDispatch = (report) => {
-    const mission = { ...report, unit: "NDRF-ALPHA-1", status: "EN ROUTE" };
-    setDispatchQueue(p => [...p, mission]);
-    setLogs(p => [...p, `[DISPATCH] Unit Alpha-1 deployed to ${report.user.name}`]);
-    setAdminSubView("dashboard");
-  };
-
-  // Views Logic (Landing/Login/Portal) - Keeping as is
+  // --- VIEWS ---
   if (view === "landing") {
     return (
       <div className="landing-page" style={s.landing}>
@@ -197,7 +351,7 @@ export default function App() {
           <input type="password" placeholder="SECURE PASSCODE" style={s.input} />
           <button 
             style={view === "login-civilian" ? s.sosBtn : s.cmdBtn} 
-            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin", { name: document.getElementById("uIn").value || "User" })}
+            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin-lobby", { name: document.getElementById("uIn").value || "User" })}
           > AUTHORIZE ACCESS </button>
           <p onClick={() => setView("landing")} style={{cursor:'pointer', fontSize:'10px', marginTop:'20px', color:'#555'}}>RETURN TO SELECTION</p>
         </div>
@@ -209,74 +363,139 @@ export default function App() {
     return <UserPortal userData={userData} onReportSubmit={handleCivilianReport} onLogout={handleLogout} />;
   }
 
-  if (adminSubView === "map" && selectedReport) {
+  if (view === "admin-lobby") {
     return (
-      <div style={{ height: "100vh", background: "#050505", color: "white", padding: "20px" }}>
-        <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-            <h3>🛰️ TARGET ACQUISITION: {selectedReport.user.name}</h3>
-            <button className="btn blue" onClick={() => setAdminSubView("dashboard")}>EXIT MAP</button>
+      <div style={{ padding: '20px', background: '#050505', minHeight: '100vh', color: 'white' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #0f0', paddingBottom: '10px', marginBottom: '20px' }}>
+          <h2 style={{ color: '#0f0', margin: 0 }}>🛡️ GUARDIAN EYE - GLOBAL COMMAND LOBBY</h2>
+          <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
+        </header>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+          {/* THE TACTICAL MAP */}
+          <div className="panel" style={{ border: '1px solid #00ccff', height: '400px' }}>
+            <MapContainer center={[21.1458, 79.0882]} zoom={10} style={{ height: "100%", width: "100%", background: '#0a0a0a' }}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+              <Marker position={[21.1458, 79.0882]}><Popup>NDRF BASE</Popup></Marker>
+              {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
+                <React.Fragment key={q.id}>
+                  <Marker position={[q.lat, q.lng]} icon={DefaultIcon} />
+                  <Polyline positions={[[21.1458, 79.0882], [q.lat, q.lng]]} color={q.severity_score > 40 ? "#ff3333" : "#00ff9c"} dashArray="5, 10" />
+                </React.Fragment>
+              ))}
+            </MapContainer>
+          </div>
+
+          {/* ACTIVE TEAMS PANEL */}
+          <div className="panel" style={{ border: '1px solid #00ff9c', overflowY: 'auto', height: '400px', padding: '15px' }}>
+            <h3 style={{ color: '#00ff9c', marginTop: 0 }}>🚁 NDRF SQUADRONS</h3>
+            {Object.entries(backendTeams).map(([team, info]) => (
+              <div key={team} style={{ background: '#111', border: `1px solid ${info.status === "AVAILABLE" ? '#00ff9c' : '#ffaa00'}`, padding: '10px', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, color: info.status === "AVAILABLE" ? '#00ff9c' : '#00ccff' }}>{team}</h4>
+                <p style={{ margin: '5px 0', fontSize: '12px' }}>Status: {info.status}</p>
+                {info.mission_id && (
+                  <button 
+                    onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }} 
+                    style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#000' }}>
+                    🎯 ENTER MISSION DECK
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        <MapContainer center={[selectedReport.location.lat, selectedReport.location.lng]} zoom={15} style={{ height: "75vh", border:'1px solid #333' }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          <Marker position={[selectedReport.location.lat, selectedReport.location.lng]}><Popup>{selectedReport.user.name}</Popup></Marker>
-        </MapContainer>
-        <button onClick={() => handleDispatch(selectedReport)} className="btn red" style={{width:'100%', marginTop:'10px', padding:'15px', fontWeight:'bold'}}>CONFIRM DISPATCH UNIT</button>
+
+        {/* DISPATCH QUEUE */}
+        <div className="panel" style={{ marginTop: '20px', border: '1px solid #ff3333' }}>
+          <h3 style={{ color: '#ff3333' }}>🚨 DISPATCH QUEUE</h3>
+          {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
+            <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', padding: '10px 0' }}>
+              <div>
+                <strong style={{ color: q.severity_score > 40 ? '#ff3333' : '#ffaa00' }}>{q.id}</strong> | Score: {q.severity_score}
+                <div style={{ fontSize: '12px', color: '#aaa' }}>{q.desc}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: '#fff' }}>{q.status}</div>
+                <div style={{ color: '#00ccff', fontSize: '12px' }}>{q.assigned_team || "AWAITING TEAM"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
-      <div className="header">
-        <span>GUARDIAN EYE — COMMAND DASHBOARD</span>
-        <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
-      </div>
+  // --- ADMIN TACTICAL DECK ---
+  if (view === "admin-tactical") {
+    return (
+      <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
+        <div className="header">
+          <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId}</span>
+          <div>
+            {/* 🔊 MUTE TOGGLE BUTTON */}
+            <button 
+              onClick={() => setAudioMuted(!audioMuted)} 
+              className="btn" 
+              style={{ background: audioMuted ? '#444' : '#ffaa00', color: audioMuted ? '#aaa' : '#000', marginRight: '10px', fontWeight: 'bold' }}>
+              {audioMuted ? "🔕 ALARMS SILENCED" : "🔊 MUTE ALARMS"}
+            </button>
 
-      <div className="main-grid">
-        <div className="left-panel"><VLMControls /></div>
-        <div className="center-panel"><VideoPlayer /></div> 
-        <div className="right-panel"><RadarPanel persons={[]} /></div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
-        <DepthPanel alertStatus={alert} />
-        <div className="panel" style={{borderColor: '#ffaa00', maxHeight: '220px', overflowY: 'auto'}}>
-            <div className="panel-title" style={{color: '#ffaa00'}}>🚨 INCOMING SOS</div>
-            {civilianReports.length === 0 ? <div style={{fontSize:'10px', color:'#444', textAlign:'center', marginTop:'30px'}}>NO ACTIVE SOS</div> : 
-              civilianReports.map((r, i) => (
-                <div key={i} style={{padding: '8px', borderBottom: '1px solid #222'}}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <span style={{fontSize:'10px', color: r.type === "PANIC_SIGNAL" ? "#ff3333" : "white"}}>
-                            {r.type === "PANIC_SIGNAL" ? "⚠ PANIC: " : ""}{r.user.name}
-                        </span>
-                        <button onClick={() => handleDispatch(r)} style={{fontSize:'8px', background:'#00ff9c', border:'none', color:'black', padding:'2px 5px', cursor:'pointer'}}>INSTANT DISPATCH</button>
-                    </div>
-                    <button onClick={() => { setSelectedReport(r); setAdminSubView("map"); }} style={{width:'100%', fontSize:'8px', marginTop:'5px', background:'#333', border:'none', color:'white', cursor:'pointer'}}>VIEW ON MAP</button>
-                </div>
-            ))}
+            <button onClick={async () => {
+              if(window.confirm("Mark mission secure and generate report?")) {
+                await fetch(`http://127.0.0.1:8000/api/sos/complete/${activeMissionId}`, { method: "POST" });
+                window.open("http://127.0.0.1:8000/api/stream/download_report", "_blank");
+                setView("admin-lobby");
+                setAlert("NORMAL"); // Shut off the siren when returning to lobby
+              }
+            }} className="btn" style={{ background: '#0f0', color: '#000', marginRight: '10px', fontWeight: 'bold' }}>
+              ✅ MARK COMPLETE
+            </button>
+            <button onClick={() => { setView("admin-lobby"); setAlert("NORMAL"); }} className="btn blue" style={{ marginRight: '10px' }}>⬅️ LOBBY</button>
+            <button onClick={() => { handleLogout(); setAlert("NORMAL"); }} className="btn red">TERMINATE</button>
+          </div>
         </div>
 
-        <div className="panel" style={{borderColor: '#00ff9c', maxHeight: '220px', overflowY: 'auto'}}>
-            <div className="panel-title" style={{color: '#00ff9c'}}>🚜 RESCUE QUEUE</div>
-            {dispatchQueue.length === 0 ? <div style={{fontSize:'10px', color:'#444', textAlign:'center', marginTop:'30px'}}>NO UNITS DEPLOYED</div> : 
-              dispatchQueue.map((d, i) => (
-                <div key={i} style={{fontSize:'9px', color:'#00ff9c', borderBottom:'1px solid #111', padding:'5px 0'}}>
-                  {d.unit} {"->"} {d.user.name} <br/>
-                  <span style={{fontSize:'8px', color:'#888'}}>[MISSION: EN ROUTE]</span>
-                </div>
-              ))}
+        <div className="main-grid">
+          {/* Pass setTelemetry down to VLMControls so buttons can update the boxes */}
+          <div className="left-panel"><VLMControls setTelemetry={setTelemetry} /></div>
+          <div className="center-panel"><VideoPlayer /></div>
+          {/* Strike 2: Feed live WebSocket data to the Radar */}
+          <div className="right-panel"><RadarPanel persons={livePersons} /></div>
+        </div>
+
+        {/* 🚀 STRIKE 2: THE 3 TELEMETRY PANELS */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
+          <div className="panel" style={{ borderColor: '#cc00ff' }}>
+            <h3 style={{ color: '#cc00ff', fontSize: '12px', margin: 0 }}>VIP TRACKER INTEL</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.vip}</div>
+          </div>
+          <div className="panel" style={{ borderColor: '#00ccff' }}>
+            <h3 style={{ color: '#00ccff', fontSize: '12px', margin: 0 }}>HAZARD ANALYSIS</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.hazard}</div>
+          </div>
+          <div className="panel" style={{ borderColor: '#ffaa00' }}>
+            <h3 style={{ color: '#ffaa00', fontSize: '12px', margin: 0 }}>VICTIM TRIAGE</h3>
+            <div style={{ fontSize: '11px', color: '#aaa', marginTop: '10px' }}>{telemetry.triage}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginTop: "10px" }}>
+          <DepthPanel telemetry={telemetry} personsCount={livePersons.length} />
+        </div>
+
+        <div style={{ marginTop: "10px" }}>
+          {/* Strike 2: Feed live data to the tables */}
+          <TacticalTables persons={livePersons} />
+        </div>
+
+        <div style={{marginTop: '10px'}}>
+          <AITerminal logs={logs} onReply={sendQuickReply} />
         </div>
       </div>
+    );
+  }
 
-      <div style={{ marginTop: "10px" }}>
-        <TacticalTables />
-      </div>
-
-      <div style={{marginTop: '10px'}}>
-        <AITerminal logs={logs} onReply={sendQuickReply} />
-      </div>
-    </div>
-  );
+  return null;
 }
 
 const s = {

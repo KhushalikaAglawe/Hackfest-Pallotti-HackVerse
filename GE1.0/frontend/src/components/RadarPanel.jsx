@@ -28,29 +28,35 @@ export default function RadarPanel({ persons = [] }) {
           zIndex: 2
         }}></div>
 
-        {/* 🔴 DYNAMIC RADAR DOTS (Mapped from Backend Data) */}
-        {persons.map((person, index) => (
+        {/* 🔴 DYNAMIC RADAR DOTS (Mapped to your rel_x / rel_y) */}
+        {persons.map((person, index) => {
+          let dotColor = '#00ff9c'; // Default Green (Safe)
+          if (person.triage_score > 40 || person.status?.includes('INJURED')) dotColor = '#ff3333'; // Red
+          if (person.is_vip || person.color_match) dotColor = '#cc00ff'; // Violet VIP
+
+          // Your backend sends rel_x and rel_y ranging from roughly -1 to +1.
+          // We multiply by 45 to keep the dots inside the 50% radius radar circle.
+          let posX = (person.rel_x || 0) * 45; 
+          let posY = (person.rel_y || 0) * -45; // Invert Y so top is up
+
+          return (
           <div key={index} style={{
             position: 'absolute',
             width: '8px', height: '8px',
-            backgroundColor: '#ff3333',
+            backgroundColor: dotColor,
             borderRadius: '50%',
-            boxShadow: '0 0 12px #ff3333',
-            // Coordinate mapping: backend x/y (-50 to 50) mapped to circle percentage
-            left: `${50 + (person.x || 0)}%`, 
-            top: `${50 + (person.y || 0)}%`,
+            boxShadow: `0 0 12px ${dotColor}`,
+            left: `calc(50% + ${posX}%)`, 
+            top: `calc(50% + ${posY}%)`,
             zIndex: 3,
-            transition: 'all 0.4s ease-in-out'
+            transition: 'all 0.4s ease-out'
           }}>
-            <span style={{ 
-              position: 'absolute', top: '-12px', left: '8px', 
-              fontSize: '8px', color: '#ff3333', whiteSpace: 'nowrap',
-              fontFamily: 'monospace', fontWeight: 'bold'
-            }}>
-              TRGT-{index + 1}
+            <span style={{ position: 'absolute', top: '-12px', left: '8px', fontSize: '8px', color: dotColor, fontWeight: 'bold' }}>
+              T-{person.id || person.person_id || index + 1}
             </span>
           </div>
-        ))}
+          )
+        })}
 
         {/* Static Background Rings */}
         {[25, 50, 75].map(ring => (
