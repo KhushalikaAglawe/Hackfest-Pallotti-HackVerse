@@ -19,8 +19,11 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
   const [status, setStatus] = useState("idle"); 
   const [description, setDescription] = useState("");
   const [dronePos, setDronePos] = useState(null);
-  const [eta, setEta] = useState(120); 
-  const startPos = useRef([20.58, 78.95]); 
+  const [eta, setEta] = useState(120);
+  const [missionId, setMissionId] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const NDRF_BASE = [21.1458, 79.0882]; // Nagpur NDRF Base
+  const startPos = useRef([21.1458, 79.0882]); 
 
   const fetchLocation = () => {
     if (navigator.geolocation) {
@@ -43,6 +46,28 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
     triggerSOS("CRITICAL: UNKNOWN EMERGENCY");
   };
 
+  // ✅ SUBMIT WITH DETAILS: Sends video + GPS to real backend
+  const handleSubmitSOS = async () => {
+    if (!hasLocation) { alert("Acquire GPS lock first!"); return; }
+
+    const formData = new FormData();
+    formData.append("video", selectedFile || new Blob(["no-video"], {type: "video/mp4"}), selectedFile?.name || "no-video.mp4");
+    formData.append("description", description || "No description provided");
+    formData.append("latitude", position[0]);
+    formData.append("longitude", position[1]);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/sos/upload", { method: "POST", body: formData });
+      const data = await response.json();
+      setMissionId(data.mission_id);
+      setStatus("waiting");
+      onReportSubmit({ user: userData, location: { lat: position[0], lng: position[1] }, description, type: "DETAILED_SOS", timestamp: new Date().toLocaleTimeString() });
+    } catch (error) {
+      console.error("SOS Transmission Failed:", error);
+      alert("Transmission Failed. Is the backend running?");
+    }
+  };
+
   const triggerSOS = (desc) => {
     setStatus("reported");
     onReportSubmit({
@@ -55,19 +80,57 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
     setTimeout(() => setStatus("tracking"), 2000);
   };
 
+  // ✅ POLLING: Wait for NDRF to assign a team to our mission
   useEffect(() => {
-    if (status === "tracking") {
-      let step = 0;
-      const interval = setInterval(() => {
-        if (step <= 100) {
-          const lat = startPos.current[0] + (position[0] - startPos.current[0]) * (step / 100);
-          const lng = startPos.current[1] + (position[1] - startPos.current[1]) * (step / 100);
-          setDronePos([lat, lng]);
-          setEta(prev => (prev > 0 ? prev - 1.2 : 0));
-          step++;
-        } else clearInterval(interval);
+    let interval;
+    if (missionId && status === "waiting") {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch("http://127.0.0.1:8000/api/sos/queue");
+          const data = await res.json();
+          const myMission = data.queue.find(q => q.id === missionId);
+          if (myMission && myMission.status === "EN ROUTE") {
+            setStatus("tracking");
+            clearInterval(interval);
+          }
+        } catch (error) { console.error("Polling error"); }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [missionId, status]);
+
+  // ✅ REAL MATHEMATICAL ETA & HELICOPTER FLIGHT PATH (Haversine Formula)
+  useEffect(() => {
+    if (status === "tracking" && hasLocation) {
+      const R = 6371;
+      const dLat = (position[0] - NDRF_BASE[0]) * Math.PI / 180;
+      const dLon = (position[1] - NDRF_BASE[1]) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(NDRF_BASE[0] * Math.PI / 180) * Math.cos(position[0] * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const distanceKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+
+      let totalFlightSeconds = Math.floor((distanceKm / 250) * 3600) + 30;
+      if (totalFlightSeconds < 15) totalFlightSeconds = 15;
+
+      setEta(totalFlightSeconds);
+      let currentTick = 0;
+
+      const flightInterval = setInterval(() => {
+        if (currentTick <= totalFlightSeconds) {
+          const progress = currentTick / totalFlightSeconds;
+          const currentLat = NDRF_BASE[0] + (position[0] - NDRF_BASE[0]) * progress;
+          const currentLng = NDRF_BASE[1] + (position[1] - NDRF_BASE[1]) * progress;
+          setDronePos([currentLat, currentLng]);
+          setEta(totalFlightSeconds - currentTick);
+          currentTick++;
+        } else {
+          clearInterval(flightInterval);
+          setEta(0);
+        }
       }, 1000);
-      return () => clearInterval(interval);
+
+      return () => clearInterval(flightInterval);
     }
   }, [status, position]);
 
@@ -105,8 +168,13 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
                   style={styles.textarea} 
                   onChange={(e) => setDescription(e.target.value)}
                 />
-                <input type="file" style={styles.fileInput} />
-                <button onClick={() => triggerSOS()} style={styles.submitBtn}>SUBMIT WITH DETAILS</button>
+                <input
+                  type="file"
+                  accept="video/mp4"
+                  style={styles.fileInput}
+                  onChange={(e) => setSelectedFile(e.target.files[0])}
+                />
+                <button onClick={handleSubmitSOS} style={styles.submitBtn}>SUBMIT WITH DETAILS</button>
               </div>
 
             </div>
@@ -131,7 +199,7 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
             {status === "tracking" && dronePos && (
               <>
                 <MapAutoRefocus victimPos={position} dronePos={dronePos} isActive={true} />
-                <Polyline positions={[startPos.current, position]} color="#00ff9c" dashArray="5, 10" />
+                <Polyline positions={[NDRF_BASE, position]} color="#00ff9c" dashArray="5, 10" />
                 <Marker position={dronePos} icon={droneIcon} />
               </>
             )}

@@ -25,7 +25,8 @@ from app.routers import (
     detections,
     alerts,
     health,
-    history
+    history,
+    sos
 )
 from app.modules.detection import detector
 
@@ -50,6 +51,7 @@ app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
 app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
+app.include_router(sos.router, prefix="/api/sos", tags=["SOS"])
 
 # 📂 DIRECTORY SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
+import React from "react";
 import "./styles/global.css";
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, MeshDistortMaterial, Stars } from '@react-three/drei';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 
 // Components
@@ -117,6 +118,29 @@ export default function App() {
   const [alert, setAlert] = useState("NORMAL");
   const [logs, setLogs] = useState(["[SYSTEM] Tactical Deck Online", "[AUTH] Waiting..."]);
 
+  // --- BACKEND STATES ---
+  const [backendQueue, setBackendQueue] = useState([]);
+  const [backendTeams, setBackendTeams] = useState({});
+  const [activeMissionId, setActiveMissionId] = useState(null);
+
+  // --- REAL-TIME QUEUE POLLING ---
+  useEffect(() => {
+    let interval;
+    if (view === "admin-lobby") {
+      const fetchQueue = async () => {
+        try {
+          const res = await fetch("http://127.0.0.1:8000/api/sos/queue");
+          const data = await res.json();
+          setBackendQueue(data.queue);
+          setBackendTeams(data.teams);
+        } catch (e) { console.error("Backend offline or CORS issue"); }
+      };
+      fetchQueue();
+      interval = setInterval(fetchQueue, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [view]);
+
   const handleLogin = (role, data) => { 
     setUserData(data); 
     setView(role); 
@@ -168,7 +192,7 @@ export default function App() {
           <input type="password" placeholder="SECURE PASSCODE" style={s.input} />
           <button 
             style={view === "login-civilian" ? s.sosBtn : s.cmdBtn} 
-            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin", { name: document.getElementById("uIn").value || "User" })}
+            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin-lobby", { name: document.getElementById("uIn").value || "Commander" })}
           > AUTHORIZE ACCESS </button>
           <p onClick={() => setView("landing")} style={{cursor:'pointer', fontSize:'10px', marginTop:'20px', color:'#555'}}>RETURN TO SELECTION</p>
         </div>
@@ -196,11 +220,70 @@ export default function App() {
     );
   }
 
-  return (
+  if (view === "admin-lobby") {
+    return (
+      <div style={{ padding: '20px', background: '#050505', minHeight: '100vh', color: 'white' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #0f0', paddingBottom: '10px', marginBottom: '20px' }}>
+          <h2 style={{ color: '#0f0', margin: 0 }}>🛡️ GUARDIAN EYE - GLOBAL COMMAND LOBBY</h2>
+          <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
+        </header>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+          <div className="panel" style={{ border: '1px solid #00ccff', height: '400px' }}>
+            <MapContainer center={[21.1458, 79.0882]} zoom={10} style={{ height: "100%", width: "100%" }}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+              <Marker position={[21.1458, 79.0882]}><Popup>NDRF BASE</Popup></Marker>
+              {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
+                <React.Fragment key={q.id}>
+                  <Marker position={[q.lat, q.lng]} icon={DefaultIcon} />
+                  <Polyline positions={[[21.1458, 79.0882], [q.lat, q.lng]]} color={q.severity_score > 40 ? "#ff3333" : "#00ff9c"} dashArray="5, 10" />
+                </React.Fragment>
+              ))}
+            </MapContainer>
+          </div>
+          <div className="panel" style={{ border: '1px solid #00ff9c', overflowY: 'auto', height: '400px', padding: '15px' }}>
+            <h3 style={{ color: '#00ff9c', marginTop: 0 }}>🚁 NDRF SQUADRONS</h3>
+            {Object.entries(backendTeams).map(([team, info]) => (
+              <div key={team} style={{ background: '#111', border: `1px solid ${info.status === "AVAILABLE" ? '#00ff9c' : '#ffaa00'}`, padding: '10px', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, color: info.status === "AVAILABLE" ? '#00ff9c' : '#00ccff' }}>{team}</h4>
+                <p style={{ margin: '5px 0', fontSize: '12px' }}>Status: {info.status}</p>
+                {info.mission_id && (
+                  <button onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }}
+                    style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                    🎯 ENTER MISSION DECK
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="panel" style={{ marginTop: '20px', border: '1px solid #ff3333' }}>
+          <h3 style={{ color: '#ff3333' }}>🚨 DISPATCH QUEUE</h3>
+          {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
+            <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', padding: '10px 0' }}>
+              <div>
+                <strong style={{ color: q.severity_score > 40 ? '#ff3333' : '#ffaa00' }}>{q.id}</strong> | Score: {q.severity_score}
+                <div style={{ fontSize: '12px', color: '#aaa' }}>{q.desc}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: '#fff' }}>{q.status}</div>
+                <div style={{ color: '#00ccff', fontSize: '12px' }}>{q.assigned_team || "AWAITING TEAM"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "admin-tactical") {
+    return (
     <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
       <div className="header">
-        <span>GUARDIAN EYE — COMMAND DASHBOARD</span>
-        <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
+        <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId || "LIVE"}</span>
+        <div>
+          <button onClick={() => setView("admin-lobby")} className="btn blue" style={{ marginRight: '10px' }}>⬅️ RETURN TO LOBBY</button>
+          <button onClick={handleLogout} className="btn red">TERMINATE SESSION</button>
+        </div>
       </div>
 
       <div className="main-grid">
@@ -249,6 +332,7 @@ export default function App() {
       </div>
     </div>
   );
+  }
 }
 
 const s = {
