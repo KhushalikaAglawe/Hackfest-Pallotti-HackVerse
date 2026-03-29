@@ -13,12 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from app.routers import alerts
-from fastapi import FastAPI
-from app.routers import alerts # <-- Ensure ye sahi import hai
 
-app = FastAPI()
-app.include_router(alerts.router)
 # ─────────────────────────────────────────
 # 📦 CORE & ROUTER IMPORTS
 # ─────────────────────────────────────────
@@ -38,19 +33,13 @@ from app.modules.detection import detector
 logger = get_logger(__name__)
 
 # 🚀 APP INIT
-<<<<<<< HEAD
-app = FastAPI(title="Guardian Eye API")
-
-# 🚀 STEP 1: OPEN THE GATES (Must be BEFORE include_router)
-=======
 app = FastAPI(
     title="Guardian Eye — SAR Backend",
     description="AI-powered SAR Operations for IAF & Indian Army",
     version="1.0.0"
 )
-app.include_router(alerts.router)
-# 🌐 CORS CONFIG
->>>>>>> 94b8e381abcf58f7b1f591d606958f891df538f0
+
+# 🚀 STEP 1: OPEN THE GATES (Must be BEFORE include_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -70,7 +59,6 @@ app.include_router(sos.router, prefix="/api/sos", tags=["SOS"])
 
 # 📂 DIRECTORY SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Dynamic DB Path: Works on any Mac/PC
 DB_PATH = os.path.join(BASE_DIR, "db", "missions.db")
 
 # Ensure output directory exists for annotated videos
@@ -79,29 +67,11 @@ os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
 # 📂 MOUNT STATIC FILES
 app.mount("/outputs", StaticFiles(directory=settings.OUTPUT_DIR), name="outputs")
 
-<<<<<<< HEAD
-=======
-# 📡 ROUTER REGISTRATION
-# Note: Humne prefixes ko clean rakha hai taaki frontend easily call kar sake
-app.include_router(health.router, prefix="/api/health", tags=["System"])
-app.include_router(analysis.router, prefix="/api/analyze", tags=["Analysis"])
-app.include_router(stream.router, prefix="/api/stream", tags=["Live Stream"])
-app.include_router(detections.router, prefix="/api/detections", tags=["Detections"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(history.router, prefix="/api/history", tags=["History"])
-
-
->>>>>>> 94b8e381abcf58f7b1f591d606958f891df538f0
 # ─────────────────────────────────────────
 # 🖥️ ROOT / DASHBOARD ENDPOINT
 # ─────────────────────────────────────────
-# ─────────────────────────────────────────
-# 🖥️ ROOT / DASHBOARD ENDPOINT (REPLACED)
-# ─────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def serve_command_deck():
-    # We remove the "test_deck.html" loading logic here 
-    # so it doesn't open the old frontend.
     return HTMLResponse("""
         <body style='background:#000; color:#00ff9c; font-family:monospace; text-align:center; padding-top:100px; border: 2px solid #00ff9c; margin: 30px; height: 80vh;'>
             <h1 style='text-shadow: 0 0 10px #00ff9c;'>🛡️ GUARDIAN EYE API — ONLINE</h1>

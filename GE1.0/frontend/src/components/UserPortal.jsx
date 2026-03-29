@@ -178,6 +178,16 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
               </div>
 
             </div>
+
+          // 🚨 WAITING FOR NDRF DISPATCH STATE:
+          ) : status === "waiting" ? (
+            <div style={{ background: '#110000', padding: '30px', border: '1px solid #ffaa00', textAlign: 'center', height: '100%' }}>
+              <h2 style={{color: '#ffaa00', marginBottom: '20px'}}>🚨 SOS RECEIVED</h2>
+              <div style={{fontSize: '18px', color: '#fff', marginBottom: '30px'}}>Evaluating Triage Priority...</div>
+              <div className="pulse" style={{color: '#ffaa00', fontSize: '14px'}}>AWAITING NDRF SQUADRON DISPATCH</div>
+            </div>
+
+          // 🚁 THE ACTUAL TRACKING UI:
           ) : (
             <div style={styles.trackingInfo}>
               <h2 style={{color: '#00ff9c'}}>RESCUE UNIT EN ROUTE</h2>
@@ -185,7 +195,7 @@ export default function UserPortal({ userData, onReportSubmit, onLogout }) {
                 <div style={{fontSize: '48px', color: '#ff3333'}}>
                   {Math.floor(eta / 60)}:{String(Math.floor(eta % 60)).padStart(2, '0')}
                 </div>
-                <div style={{fontSize: '10px'}}>ESTIMATED ARRIVAL TIME</div>
+                <div style={{fontSize: '10px'}}>REAL-TIME ESTIMATED ARRIVAL</div>
               </div>
               <div className="pulse">📡 LIVE SATELLITE TRACKING</div>
             </div>

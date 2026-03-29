@@ -163,6 +163,12 @@ export default function App() {
     } catch (e) { console.error("Reply Error", e); }
   }
 
+  // --- MISSING FUNCTION RESTORED ---
+  const handleCivilianReport = (report) => {
+    setAlert("EMERGENCY");
+    setLogs(p => [...p, `[ALERT] NEW SOS RECEIVED FROM CIVILIAN PORTAL`]);
+  };
+
   const handleLogin = (role, data) => { 
     setUserData(data); 
     setView(role); 
