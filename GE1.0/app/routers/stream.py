@@ -351,106 +351,150 @@ async def kmeans_lock():
     vip_tracker.set_dynamic_target(top_math, bottom_math)
 
     return {"status": f"K-Means Target Extracted!\nTop Math: {top_math}\nBottom Math: {bottom_math}"}
+
+# ─────────────────────────────────────────
+# 🚨 CITIZEN SOS & SAAS DASHBOARD LOGIC
+# ─────────────────────────────────────────
+
+@router.post("/citizen/report")
+async def citizen_report(
+    description: str = Form(...),
+    lat: float = Form(...),
+    lon: float = Form(...),
+    reporter: str = Form("Anonymous"),
+    image: Optional[UploadFile] = File(None)
+):
+    """
+    Feature 1: The 'Message' System.
+    Income Source: SaaS Premium Tier - Direct Citizen-to-Police link.
+    """
+    report_id = f"SOS-{int(time.time())}"
+    
+    # Image save logic (Optional: can be sent to Cloud Storage for SaaS)
+    image_path = None
+    if image:
+        image_path = f"uploads/reports/{report_id}_{image.filename}"
+        os.makedirs("uploads/reports", exist_ok=True)
+        with open(image_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+
+    report_data = {
+        "report_id": report_id,
+        "type": "CITIZEN_SOS",
+        "priority": "CRITICAL", # High priority for SaaS dashboard
+        "description": description,
+        "location": {"lat": lat, "lon": lon},
+        "reporter": reporter,
+        "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
+        "image_url": image_path
+    }
+
+    # Push to Global State for Dashboard visibility
+    store.add_citizen_report(report_data)
+    
+    # Broadcast to all connected WebSockets for INSTANT visual alert
+    ws_payload = json.dumps({"type": "NEW_SOS_ALERT", "data": report_data})
+    asyncio.run_coroutine_threadsafe(manager.broadcast(ws_payload), asyncio.get_event_loop())
+
+    logger.warning(f"🚨 SOS RECEIVED: {description} at {lat}, {lon}")
+    return {"status": "success", "incident_id": report_id}
+
+@router.get("/dashboard/alerts")
+async def fetch_dashboard_alerts():
+    """
+    SaaS Feature: This endpoint provides data to the police dashboard.
+    Shows the latest 3 critical citizen reports.
+    """
+    # Fetch from the store we updated in state.py
+    critical_reports = store.get_latest_reports(limit=3)
+    
+    return {
+        "status": "active",
+        "alerts": critical_reports,
+        "drone_status": "standby_for_dispatch",
+        "system_health": "OPTIMAL"
+    }
+
 @router.get("/download_report")
 async def download_report():
-    global _last_env
+    # 1. Fetch JSON data from Global Store
+    all_reports = store.citizen_reports # List of Dicts
+    all_persons = list(store.persons.values())
     
-    # 1. Mission Timeline Table Rows
-    timeline_rows = "".join([
-        f"<tr><td>{log['time']}</td><td>{log['event']}</td></tr>" 
-        for log in store.mission_timeline
-    ])
-    
-    # 2. Target Acquisition (Victims) Table Rows with Triage Logic
-    victims_rows = ""
-    for p in store.persons.values():
-        # Triage Logic for UI
-        status_class = "critical-row" if ("INJURED" in p.status.upper() or "LYING DOWN" in p.status.upper()) else ""
-        priority = "P1 (High)" if status_class else "P2 (Stable)"
-        
-        victims_rows += f"""
-        <tr class="{status_class}">
-            <td>{p.person_id}</td>
-            <td>{p.status}</td>
-            <td>{priority}</td>
-            <td>{p.gps_lat}, {p.gps_lon}</td>
+    # 2. Convert Citizen JSON Data to Table Rows
+    citizen_rows = ""
+    for r in all_reports:
+        # Priority-based styling
+        row_class = "critical-row" if r.get("priority") == "CRITICAL" else ""
+        citizen_rows += f"""
+        <tr class="{row_class}">
+            <td>{r.get('report_id')}</td>
+            <td>{r.get('timestamp')}</td>
+            <td>{r.get('reporter')}</td>
+            <td>{r.get('description')}</td>
+            <td>{r.get('location', {}).get('lat')}, {r.get('location', {}).get('lon')}</td>
+            <td><span class="badge badge-danger">ACTIVE</span></td>
         </tr>
         """
 
-    env_status = _last_env.get('safety_level', 'UNKNOWN') if isinstance(_last_env, dict) else 'UNKNOWN'
+    # 3. Convert Person Detection JSON to Table Rows
+    detection_rows = ""
+    for p in all_persons:
+        detection_rows += f"""
+        <tr>
+            <td>{p.person_id}</td>
+            <td>{p.status}</td>
+            <td>{p.gps_lat}, {p.gps_lon}</td>
+            <td>{getattr(p, 'triage_score', 'N/A')}</td>
+        </tr>
+        """
 
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Guardian Eye | Tactical Report</title>
+        <title>Guardian Eye | Operational Audit</title>
         <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; color: #333; padding: 40px; }}
-            .container {{ background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1000px; margin: auto; }}
-            .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1a2a6c; padding-bottom: 15px; margin-bottom: 20px; }}
-            h1 {{ margin: 0; color: #1a2a6c; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }}
-            .meta-info {{ font-size: 14px; color: #666; margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
-            
-            table {{ width: 100%; border-collapse: collapse; margin-bottom: 30px; background: #fff; }}
-            th {{ background: #1a2a6c; color: white; text-align: left; padding: 12px; font-size: 13px; text-transform: uppercase; }}
-            td {{ padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }}
-            
-            .critical-row {{ background-color: #ffebee; color: #c62828; font-weight: bold; }}
-            .section-title {{ background: #e8ecef; padding: 8px 12px; font-weight: bold; border-left: 5px solid #1a2a6c; margin-bottom: 15px; }}
-            
-            .badge {{ padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }}
-            .badge-danger {{ background: #f44336; color: white; }}
-            .badge-success {{ background: #4caf50; color: white; }}
-            .footer {{ text-align: center; font-size: 11px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 10px; }}
+            body {{ font-family: sans-serif; padding: 30px; background: #f8f9fa; }}
+            .container {{ max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            h1 {{ color: #1a2a6c; border-bottom: 2px solid #1a2a6c; padding-bottom: 10px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th {{ background: #1a2a6c; color: white; padding: 12px; text-align: left; }}
+            td {{ padding: 10px; border-bottom: 1px solid #ddd; font-size: 14px; }}
+            .critical-row {{ background: #fff5f5; color: #d9534f; font-weight: bold; }}
+            .badge {{ padding: 5px 10px; border-radius: 4px; color: white; font-size: 12px; }}
+            .badge-danger {{ background: #d9534f; }}
+            .section-header {{ margin-top: 40px; background: #eee; padding: 10px; font-weight: bold; }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                <h1>Guardian Eye | Mission Intelligence</h1>
-                <div style="text-align: right;">
-                    <span style="font-weight:bold;">REPORT ID:</span> GE-{int(time.time())}
-                </div>
-            </div>
-
-            <div class="meta-info">
-                <div><strong>TIMESTAMP:</strong> {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
-                <div><strong>LOCATION:</strong> Sector Alpha (Nagpur/Vidarbha)</div>
-                <div><strong>ENVIRONMENTAL HAZARD:</strong> <span class="badge {'badge-danger' if env_status != 'SAFE' else 'badge-success'}">{env_status}</span></div>
-                <div><strong>OPERATIONAL STATUS:</strong> TERMINATED</div>
-            </div>
-
-            <div class="section-title">TARGET ACQUISITION (SAR VICTIMS)</div>
+            <h1>Guardian Eye: Incident Audit Report</h1>
+            <p><strong>Generated on:</strong> {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+            
+            <div class="section-header">1. CITIZEN SOS MESSAGES (SaaS FEED)</div>
             <table>
                 <thead>
                     <tr>
-                        <th>Victim ID</th>
-                        <th>Status / Posture</th>
-                        <th>Rescue Priority</th>
-                        <th>GPS Coordinates</th>
+                        <th>ID</th><th>Time</th><th>Reporter</th><th>Incident Details</th><th>Coordinates</th><th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {victims_rows if victims_rows else "<tr><td colspan='4' style='text-align:center;'>No targets identified.</td></tr>"}
+                    {citizen_rows if citizen_rows else "<tr><td colspan='6' style='text-align:center;'>No SOS messages yet.</td></tr>"}
                 </tbody>
             </table>
 
-            <div class="section-title">MISSION EVENT LOG</div>
+            <div class="section-header">2. AI DETECTION LOGS (DRONE FEED)</div>
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 20%;">Time</th>
-                        <th>Action/Event Description</th>
+                        <th>Person ID</th><th>Last Known Status</th><th>GPS Coords</th><th>Triage Score</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {timeline_rows if timeline_rows else "<tr><td colspan='2' style='text-align:center;'>No events logged.</td></tr>"}
+                    {detection_rows if detection_rows else "<tr><td colspan='4' style='text-align:center;'>No detections recorded.</td></tr>"}
                 </tbody>
             </table>
-
-            <div class="footer">
-                GENERATED BY GUARDIAN EYE EDGE-AI | CONFIDENTIAL TACTICAL DATA
-            </div>
         </div>
     </body>
     </html>
