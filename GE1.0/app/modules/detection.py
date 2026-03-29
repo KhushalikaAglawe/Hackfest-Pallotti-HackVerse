@@ -3,16 +3,22 @@ Guardian Eye — Person Detection Module
 YOLOv8 Pose + ByteTrack for person detection and tracking.
 Now includes posture / injury detection and VIP color targeting.
 """
+from typing import Optional, List  
+from fastapi import APIRouter, File, UploadFile, BackgroundTasks
 
 import cv2
 import numpy as np
 from typing import List, Tuple, Dict
 from dataclasses import dataclass
+from fastapi import APIRouter  # Fixed: Added missing import
 
 from app.core.config import settings
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Router definition
+router = APIRouter(tags=["Detections"])
 
 
 @dataclass
@@ -200,3 +206,4 @@ class PersonDetector:
 
 
 detector = PersonDetector()
+

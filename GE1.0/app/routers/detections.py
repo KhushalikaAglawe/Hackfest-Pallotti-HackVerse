@@ -7,25 +7,18 @@ GET  /api/detections/map              — GPS points for map display
 GET  /api/detections/landing-zones    — Latest safe landing zones
 PATCH /api/detections/persons/{pid}  — Update status (RESCUED etc.)
 """
-
+from fastapi import APIRouter  
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 
 from app.core.state import store
 from app.core.logger import get_logger
+import cv2
+import numpy as np
 
 router = APIRouter()
 logger = get_logger(__name__)
-from fastapi import APIRouter
-from app.db.queries import fetch_history
-
-router = APIRouter(prefix="/api/detections", tags=["Detections"])
-
-@router.get("/history")
-async def get_mission_history():
-    # Khushalika's DB function call
-    data = fetch_history(limit=20)
-    return {"status": "success", "logs": data}
+router = APIRouter(tags=["Detections"])
 
 @router.get("/persons")
 def get_all_persons(status: Optional[str] = None, limit: int = 100):
