@@ -20,13 +20,12 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// --- 🚀 TACTICAL DATA TABLES (Separated Live & History) ---
+// --- 🚀 TACTICAL DATA TABLES ---
 const TacticalTables = () => {
   const [persons, setPersons] = useState([]);
   const [apiLogs, setApiLogs] = useState([]);
 
   useEffect(() => {
-    // 1. Fetch Historical Logs from your API
     const fetchHistory = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8000/api/history/logs");
@@ -36,7 +35,6 @@ const TacticalTables = () => {
     };
     fetchHistory();
 
-    // 2. Live WebSocket Connection
     const ws = new WebSocket("ws://localhost:8000/ws");
     ws.onmessage = (event) => {
       try {
@@ -49,7 +47,6 @@ const TacticalTables = () => {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '10px' }}>
-      {/* 🎯 LEFT: LIVE TARGET ACQUISITION (stream.py) */}
       <div className="panel" style={{ borderColor: '#333', height: '220px', overflowY: 'auto' }}>
         <div className="panel-title" style={{ color: '#ffaa00', fontSize: '10px' }}>🎯 LIVE TARGET ACQUISITION</div>
         <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse', marginTop: '5px' }}>
@@ -71,7 +68,6 @@ const TacticalTables = () => {
         </table>
       </div>
 
-      {/* 📂 RIGHT: SYSTEM HISTORY (API Logs) */}
       <div className="panel" style={{ borderColor: '#00ccff', height: '220px', overflowY: 'auto' }}>
         <div className="panel-title" style={{ color: '#00ccff', fontSize: '10px' }}>📂 SYSTEM HISTORY (DB)</div>
         <div style={{ padding: '5px' }}>
@@ -87,7 +83,6 @@ const TacticalTables = () => {
   );
 };
 
-// --- 3D TACTICAL DEPTH PANEL ---
 const DepthPanel = ({ alertStatus }) => {
   const isEmergency = alertStatus === "EMERGENCY";
   const themeColor = isEmergency ? "#ff3333" : "#00ff9c";
@@ -110,20 +105,16 @@ const DepthPanel = ({ alertStatus }) => {
 
 export default function App() {
   const [view, setView] = useState("landing"); 
-  const [adminSubView, setAdminSubView] = useState("dashboard");
   const [userData, setUserData] = useState(null);
-  const [civilianReports, setCivilianReports] = useState([]);
-  const [dispatchQueue, setDispatchQueue] = useState([]);
-  const [selectedReport, setSelectedReport] = useState(null);
   const [alert, setAlert] = useState("NORMAL");
   const [logs, setLogs] = useState(["[SYSTEM] Tactical Deck Online", "[AUTH] Waiting..."]);
 
-  // --- BACKEND STATES ---
+  // --- NEW BACKEND STATES (Lobby & Queue) ---
   const [backendQueue, setBackendQueue] = useState([]);
   const [backendTeams, setBackendTeams] = useState({});
   const [activeMissionId, setActiveMissionId] = useState(null);
 
-  // --- REAL-TIME QUEUE POLLING ---
+  // --- REAL-TIME QUEUE POLLING (Lobby) ---
   useEffect(() => {
     let interval;
     if (view === "admin-lobby") {
@@ -131,15 +122,46 @@ export default function App() {
         try {
           const res = await fetch("http://127.0.0.1:8000/api/sos/queue");
           const data = await res.json();
-          setBackendQueue(data.queue);
-          setBackendTeams(data.teams);
+          setBackendQueue(data.queue || []);
+          setBackendTeams(data.teams || {});
         } catch (e) { console.error("Backend offline or CORS issue"); }
       };
-      fetchQueue();
+      fetchQueue(); 
       interval = setInterval(fetchQueue, 3000);
     }
     return () => clearInterval(interval);
   }, [view]);
+
+  // --- DB TEAMMATE'S POLLING LOGIC ---
+  useEffect(() => {
+    if (view === "admin-tactical") {
+      const interval = setInterval(() => { fetchNewMessages(); }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [view]);
+
+  async function fetchNewMessages() {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/alerts/popups');
+      const data = await response.json();
+      if (data.alerts) {
+        data.alerts.forEach(msg => {
+          setLogs(prev => [...prev, `[USER-${msg.user}]: ${msg.content}`]);
+        });
+      }
+    } catch (e) { console.error("Polling Error", e); }
+  }
+
+  async function sendQuickReply(text, msgId = "CMD-01") {
+    try {
+      await fetch('http://127.0.0.1:8000/api/alerts/reply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message_id: msgId, reply_text: text })
+      });
+      setLogs(prev => [...prev, `[COMMAND]: ${text}`]);
+    } catch (e) { console.error("Reply Error", e); }
+  }
 
   const handleLogin = (role, data) => { 
     setUserData(data); 
@@ -149,24 +171,11 @@ export default function App() {
 
   const handleLogout = () => { 
     setView("landing"); 
-    setAdminSubView("dashboard");
     setUserData(null);
-    setLogs(p => [...p, "[SYSTEM] Security logout successful"]);
+    setLogs(["[SYSTEM] Security logout successful"]);
   };
 
-  const handleCivilianReport = (report) => {
-    setCivilianReports(p => [report, ...p]);
-    setAlert(report.type === "PANIC_SIGNAL" ? "EMERGENCY" : "NORMAL");
-    setLogs(p => [...p, `[ALERT] ${report.type || 'SOS'} from ${report.user.name}`]);
-  };
-
-  const handleDispatch = (report) => {
-    const mission = { ...report, unit: "NDRF-ALPHA-1", status: "EN ROUTE" };
-    setDispatchQueue(p => [...p, mission]);
-    setLogs(p => [...p, `[DISPATCH] Unit Alpha-1 deployed to ${report.user.name}`]);
-    setAdminSubView("dashboard");
-  };
-
+  // --- VIEWS ---
   if (view === "landing") {
     return (
       <div className="landing-page" style={s.landing}>
@@ -192,7 +201,7 @@ export default function App() {
           <input type="password" placeholder="SECURE PASSCODE" style={s.input} />
           <button 
             style={view === "login-civilian" ? s.sosBtn : s.cmdBtn} 
-            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin-lobby", { name: document.getElementById("uIn").value || "Commander" })}
+            onClick={() => handleLogin(view === "login-civilian" ? "user" : "admin-lobby", { name: document.getElementById("uIn").value || "User" })}
           > AUTHORIZE ACCESS </button>
           <p onClick={() => setView("landing")} style={{cursor:'pointer', fontSize:'10px', marginTop:'20px', color:'#555'}}>RETURN TO SELECTION</p>
         </div>
@@ -201,23 +210,7 @@ export default function App() {
   }
 
   if (view === "user") {
-    return <UserPortal userData={userData} onReportSubmit={handleCivilianReport} onLogout={handleLogout} />;
-  }
-
-  if (adminSubView === "map" && selectedReport) {
-    return (
-      <div style={{ height: "100vh", background: "#050505", color: "white", padding: "20px" }}>
-        <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-            <h3>🛰️ TARGET ACQUISITION: {selectedReport.user.name}</h3>
-            <button className="btn blue" onClick={() => setAdminSubView("dashboard")}>EXIT MAP</button>
-        </div>
-        <MapContainer center={[selectedReport.location.lat, selectedReport.location.lng]} zoom={15} style={{ height: "75vh", border:'1px solid #333' }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          <Marker position={[selectedReport.location.lat, selectedReport.location.lng]}><Popup>{selectedReport.user.name}</Popup></Marker>
-        </MapContainer>
-        <button onClick={() => handleDispatch(selectedReport)} className="btn red" style={{width:'100%', marginTop:'10px', padding:'15px', fontWeight:'bold'}}>CONFIRM DISPATCH UNIT</button>
-      </div>
-    );
+    return <UserPortal userData={userData} onLogout={handleLogout} />;
   }
 
   if (view === "admin-lobby") {
@@ -227,9 +220,11 @@ export default function App() {
           <h2 style={{ color: '#0f0', margin: 0 }}>🛡️ GUARDIAN EYE - GLOBAL COMMAND LOBBY</h2>
           <button onClick={handleLogout} className="btn blue">TERMINATE SESSION</button>
         </header>
+
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+          {/* THE TACTICAL MAP */}
           <div className="panel" style={{ border: '1px solid #00ccff', height: '400px' }}>
-            <MapContainer center={[21.1458, 79.0882]} zoom={10} style={{ height: "100%", width: "100%" }}>
+            <MapContainer center={[21.1458, 79.0882]} zoom={10} style={{ height: "100%", width: "100%", background: '#0a0a0a' }}>
               <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
               <Marker position={[21.1458, 79.0882]}><Popup>NDRF BASE</Popup></Marker>
               {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
@@ -240,6 +235,8 @@ export default function App() {
               ))}
             </MapContainer>
           </div>
+
+          {/* ACTIVE TEAMS PANEL */}
           <div className="panel" style={{ border: '1px solid #00ff9c', overflowY: 'auto', height: '400px', padding: '15px' }}>
             <h3 style={{ color: '#00ff9c', marginTop: 0 }}>🚁 NDRF SQUADRONS</h3>
             {Object.entries(backendTeams).map(([team, info]) => (
@@ -247,8 +244,9 @@ export default function App() {
                 <h4 style={{ margin: 0, color: info.status === "AVAILABLE" ? '#00ff9c' : '#00ccff' }}>{team}</h4>
                 <p style={{ margin: '5px 0', fontSize: '12px' }}>Status: {info.status}</p>
                 {info.mission_id && (
-                  <button onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }}
-                    style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                  <button 
+                    onClick={() => { setActiveMissionId(info.mission_id); setView("admin-tactical"); }} 
+                    style={{ width: '100%', padding: '8px', background: '#00ccff', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#000' }}>
                     🎯 ENTER MISSION DECK
                   </button>
                 )}
@@ -256,6 +254,8 @@ export default function App() {
             ))}
           </div>
         </div>
+
+        {/* DISPATCH QUEUE */}
         <div className="panel" style={{ marginTop: '20px', border: '1px solid #ff3333' }}>
           <h3 style={{ color: '#ff3333' }}>🚨 DISPATCH QUEUE</h3>
           {backendQueue.filter(q => q.status !== "COMPLETED").map(q => (
@@ -275,64 +275,49 @@ export default function App() {
     );
   }
 
+  // --- ADMIN TACTICAL DECK ---
   if (view === "admin-tactical") {
     return (
-    <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
-      <div className="header">
-        <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId || "LIVE"}</span>
-        <div>
-          <button onClick={() => setView("admin-lobby")} className="btn blue" style={{ marginRight: '10px' }}>⬅️ RETURN TO LOBBY</button>
-          <button onClick={handleLogout} className="btn red">TERMINATE SESSION</button>
-        </div>
-      </div>
-
-      <div className="main-grid">
-        <div className="left-panel"><VLMControls /></div>
-        <div className="center-panel"><VideoPlayer /></div> 
-        <div className="right-panel"><RadarPanel persons={[]} /></div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px", marginTop: "10px" }}>
-        <DepthPanel alertStatus={alert} />
-        <div className="panel" style={{borderColor: '#ffaa00', maxHeight: '220px', overflowY: 'auto'}}>
-            <div className="panel-title" style={{color: '#ffaa00'}}>🚨 INCOMING SOS</div>
-            {civilianReports.length === 0 ? <div style={{fontSize:'10px', color:'#444', textAlign:'center', marginTop:'30px'}}>NO ACTIVE SOS</div> : 
-              civilianReports.map((r, i) => (
-                <div key={i} style={{padding: '8px', borderBottom: '1px solid #222'}}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <span style={{fontSize:'10px', color: r.type === "PANIC_SIGNAL" ? "#ff3333" : "white"}}>
-                            {r.type === "PANIC_SIGNAL" ? "⚠ PANIC: " : ""}{r.user.name}
-                        </span>
-                        <button onClick={() => handleDispatch(r)} style={{fontSize:'8px', background:'#00ff9c', border:'none', color:'black', padding:'2px 5px', cursor:'pointer'}}>INSTANT DISPATCH</button>
-                    </div>
-                    <button onClick={() => { setSelectedReport(r); setAdminSubView("map"); }} style={{width:'100%', fontSize:'8px', marginTop:'5px', background:'#333', border:'none', color:'white', cursor:'pointer'}}>VIEW ON MAP</button>
-                </div>
-            ))}
+      <div className={`app ${alert === "EMERGENCY" ? "emergency-screen" : ""}`}>
+        <div className="header">
+          <span>GUARDIAN EYE — TACTICAL DECK | OP: {activeMissionId}</span>
+          <div>
+            <button onClick={async () => {
+              if(window.confirm("Mark mission secure and generate report?")) {
+                await fetch(`http://127.0.0.1:8000/api/sos/complete/${activeMissionId}`, { method: "POST" });
+                window.open("http://127.0.0.1:8000/api/stream/download_report", "_blank");
+                setView("admin-lobby");
+              }
+            }} className="btn" style={{ background: '#0f0', color: '#000', marginRight: '10px', fontWeight: 'bold' }}>
+              ✅ MARK COMPLETE
+            </button>
+            <button onClick={() => setView("admin-lobby")} className="btn blue" style={{ marginRight: '10px' }}>⬅️ LOBBY</button>
+            <button onClick={handleLogout} className="btn red">TERMINATE</button>
+          </div>
         </div>
 
-        <div className="panel" style={{borderColor: '#00ff9c', maxHeight: '220px', overflowY: 'auto'}}>
-            <div className="panel-title" style={{color: '#00ff9c'}}>🚜 RESCUE QUEUE</div>
-            {dispatchQueue.length === 0 ? <div style={{fontSize:'10px', color:'#444', textAlign:'center', marginTop:'30px'}}>NO UNITS DEPLOYED</div> : 
-              dispatchQueue.map((d, i) => (
-                <div key={i} style={{fontSize:'9px', color:'#00ff9c', borderBottom:'1px solid #111', padding:'5px 0'}}>
-                  {d.unit} {"->"} {d.user.name} <br/>
-                  <span style={{fontSize:'8px', color:'#888'}}>[MISSION: EN ROUTE]</span>
-                </div>
-              ))}
+        <div className="main-grid">
+          <div className="left-panel"><VLMControls /></div>
+          <div className="center-panel"><VideoPlayer /></div> 
+          <div className="right-panel"><RadarPanel persons={[]} /></div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", marginTop: "10px" }}>
+          <DepthPanel alertStatus={alert} />
+        </div>
+
+        <div style={{ marginTop: "10px" }}>
+          <TacticalTables />
+        </div>
+
+        <div style={{marginTop: '10px'}}>
+          <AITerminal logs={logs} onReply={sendQuickReply} />
         </div>
       </div>
-
-      {/* 📊 LIVE & HISTORY TABLES SECTION */}
-      <div style={{ marginTop: "10px" }}>
-        <TacticalTables />
-      </div>
-
-      <div style={{marginTop: '10px'}}>
-        <AITerminal logs={logs} />
-      </div>
-    </div>
-  );
+    );
   }
+
+  return null;
 }
 
 const s = {
